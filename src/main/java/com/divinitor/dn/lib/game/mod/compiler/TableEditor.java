@@ -84,6 +84,12 @@ public class TableEditor {
         delete.addAll(directive.getDelete());
 
         int rows = 0;
+        Dnt dnt = handle.getDnt();
+        byte[] data = dnt.getData();
+        int widths[] = new int[dnt.getNumColumns()];
+        for (int i = 0; i < dnt.getColumns().length; i++) {
+            widths[i] = dnt.getColumns()[i].getDataType() == DntColumn.DataType.TEXT ? 0 : 4;
+        }
 
         for (DntReader.DntHandle.RowReader rr : handle) {
             int thisRowId = rr.getRowId();
@@ -103,9 +109,26 @@ public class TableEditor {
             //  Edit
             if (mod.containsKey(thisRowId)) {
                 //  Transform
+                outputStream.write(this.modify(handle, mod.get(thisRowId), rr));
+            } else {
+                //  Copy
+                int startPos, offset;
+                startPos = offset = handle.getRowOffset(thisRowId);
+                offset += 4;
+                for (int width : widths) {
+                    if (width == 0) {
+                        int addL = data[offset] & 0xFF;
+                        addL |= (data[offset + 1] << 8) & 0xFF00;
+                        offset += addL;
+                        offset += 2;
+                    } else {
+                        offset += width;
+                    }
+                }
 
+                int width = offset - startPos;
+                outputStream.write(data, startPos, width);
             }
-
 
             ++rows;
         }
@@ -119,6 +142,7 @@ public class TableEditor {
 
         BodyResult ret = new BodyResult();
         ret.data = outputStream.toByteArray();
+        ret.numRows = rows;
         return ret;
     }
 
@@ -158,7 +182,78 @@ public class TableEditor {
                     throw new IllegalArgumentException();
             }
         }
-        
+
+        return outputStream.toByteArray();
+    }
+
+    private byte[] modify(DntReader.DntHandle handle, TableRow row, DntReader.DntHandle.RowReader rr)
+            throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        LittleEndianDataOutputStream dout = new LittleEndianDataOutputStream(outputStream);
+
+        dout.writeInt(row.getRowId());
+
+        Map<String, Object> columns = row.getColumns();
+        DntColumn[] columns1 = handle.getDnt().getColumns();
+        for (int i = 0, columns1Length = columns1.length; i < columns1Length; i++) {
+            DntColumn dntColumn = columns1[i];
+            Object val = columns.get(dntColumn.getName());
+
+            if (val == null) {
+                switch (dntColumn.getDataType()) {
+                    case BOOLEAN: {
+                        boolean value = rr.getBoolean(i);
+                        dout.writeInt(value ? 1 : 0);
+                        break;
+                    }
+                    case TEXT: {
+                        String value = rr.getString(i);
+                        DnStringUtils.writeShortLengthPrefixedString(value, dout);
+                        break;
+                    }
+                    case FLOAT:
+                    case DOUBLE: {
+                        float value = rr.getFloat(i);
+                        dout.writeFloat(value);
+                        break;
+                    }
+                    case INTEGER: {
+                        int value = rr.getInt(i);
+                        dout.writeInt(value);
+                        break;
+                    }
+                    default:
+                        throw new IllegalArgumentException();
+                }
+            } else {
+                switch (dntColumn.getDataType()) {
+                    case BOOLEAN: {
+                        boolean value = parseBool(val);
+                        dout.writeInt(value ? 1 : 0);
+                        break;
+                    }
+                    case TEXT: {
+                        String value = val == null ? "" : String.valueOf(val);
+                        DnStringUtils.writeShortLengthPrefixedString(value, dout);
+                        break;
+                    }
+                    case FLOAT:
+                    case DOUBLE: {
+                        float value = parseFloat(val);
+                        dout.writeFloat(value);
+                        break;
+                    }
+                    case INTEGER: {
+                        int value = parseInt(val);
+                        dout.writeInt(value);
+                        break;
+                    }
+                    default:
+                        throw new IllegalArgumentException();
+                }
+            }
+        }
+
         return outputStream.toByteArray();
     }
 
