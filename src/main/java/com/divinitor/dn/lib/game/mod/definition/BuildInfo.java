@@ -14,5 +14,5 @@ public class BuildInfo {
     protected Version kitVersion;
     protected CopyFromGameDirective[] copy;
     protected CopyFromPackDirective[] add;
-//    protected TableEditDirective[] editTable;
+    protected TableEditDirective[] editTable;
 }

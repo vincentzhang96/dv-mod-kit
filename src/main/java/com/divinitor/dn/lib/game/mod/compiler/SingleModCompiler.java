@@ -6,10 +6,7 @@ import co.phoenixlab.dn.util.Sparser;
 import com.divinitor.dn.lib.game.mod.CompileException;
 import com.divinitor.dn.lib.game.mod.DnAssetAccessService;
 import com.divinitor.dn.lib.game.mod.ModKit;
-import com.divinitor.dn.lib.game.mod.definition.BuildInfo;
-import com.divinitor.dn.lib.game.mod.definition.CopyFromGameDirective;
-import com.divinitor.dn.lib.game.mod.definition.CopyFromPackDirective;
-import com.divinitor.dn.lib.game.mod.definition.ModPackage;
+import com.divinitor.dn.lib.game.mod.definition.*;
 import com.divinitor.dn.lib.game.mod.pak.ManagedPak;
 import com.divinitor.dn.lib.game.mod.pak.ManagedPakIndexEntry;
 import com.divinitor.dn.lib.game.mod.pak.ManagedPakModIndexEntry;
@@ -17,6 +14,7 @@ import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import net.openhft.hashing.LongHashFunction;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -42,10 +40,12 @@ public class SingleModCompiler implements ModCompiler {
     private ModPackage modPack;
     private Path target;
     private BuildComputeResults buildComputeResults;
+    private TableEditor tableEditor;
 
     public SingleModCompiler(ModKit kit) {
         this.kit = kit;
         this.assetAccessService = kit.getAssetAccessService();
+        this.tableEditor = new TableEditor(this.assetAccessService);
     }
 
     @Override
@@ -68,33 +68,61 @@ public class SingleModCompiler implements ModCompiler {
         List<FileBuildStep> steps = results.steps;
 
         BuildInfo build = this.modPack.getBuild();
-        for (CopyFromGameDirective directive : build.getCopy()) {
-            String src = directive.getSource();
-            if (!this.assetAccessService.contains(src)) {
-                results.missing.put(this.modPack.getId(), "pak::" + src);
-                continue;
+
+        if (build.getCopy() != null) {
+            for (CopyFromGameDirective directive : build.getCopy()) {
+                String src = directive.getSource();
+                if (!this.assetAccessService.contains(src)) {
+                    results.missing.put(this.modPack.getId(), "pak::" + src);
+                    continue;
+                }
+
+                String dest = directive.getDest();
+                destinationFiles.put(dest, this.modPack.getId());
+
+                steps.add(new FileBuildStep(this.modPack, dest, gameSource(this.assetAccessService, src)));
             }
-
-            String dest = directive.getDest();
-            destinationFiles.put(dest, this.modPack.getId());
-
-            steps.add(new FileBuildStep(this.modPack, dest, gameSource(this.assetAccessService, src)));
         }
 
-        for (CopyFromPackDirective directive : build.getAdd()) {
-            String src = directive.getSource();
-            if (!this.modPack.hasAsset(src)) {
-                results.missing.put(this.modPack.getId(), "mod::" + src);
-                continue;
+        if (build.getAdd() != null) {
+            for (CopyFromPackDirective directive : build.getAdd()) {
+                String src = directive.getSource();
+                if (!this.modPack.hasAsset(src)) {
+                    results.missing.put(this.modPack.getId(), "mod::" + src);
+                    continue;
+                }
+
+                String dest = directive.getDest();
+                destinationFiles.put(dest, this.modPack.getId());
+
+                steps.add(new FileBuildStep(this.modPack, dest, packSource(this.modPack, src)));
             }
-
-            String dest = directive.getDest();
-            destinationFiles.put(dest, this.modPack.getId());
-
-            steps.add(new FileBuildStep(this.modPack, dest, packSource(this.modPack, src)));
         }
 
         //  TODO table edits
+        if (build.getEditTable() != null) {
+            for (TableEditDirective directive : build.getEditTable()) {
+                String tableName = directive.getTableName();
+                if (!tableName.endsWith(".dnt")) {
+                    tableName = tableName + ".dnt";
+                }
+
+                if (!this.assetAccessService.contains(tableName)) {
+                    results.missing.put(this.modPack.getId(), "pak::" + tableName);
+                    continue;
+                }
+
+                String dest;
+                try {
+                    dest = this.assetAccessService.resolve(tableName);
+                } catch (FileNotFoundException fnfe) {
+                    results.missing.put(this.modPack.getId(), "pak::" + tableName);
+                    continue;
+                }
+
+                steps.add(new FileBuildStep(this.modPack, dest, tableEditor.tableEdit(tableName, directive)));
+            }
+        }
 
         destinationFiles.asMap().entrySet().stream()
             .filter(e -> e.getValue().size() > 1)
