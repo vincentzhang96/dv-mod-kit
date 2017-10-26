@@ -6,6 +6,7 @@ import co.phoenixlab.dn.util.Sparser;
 import com.divinitor.dn.lib.game.mod.CompileException;
 import com.divinitor.dn.lib.game.mod.DnAssetAccessService;
 import com.divinitor.dn.lib.game.mod.ModKit;
+import com.divinitor.dn.lib.game.mod.UnsupportedVersionException;
 import com.divinitor.dn.lib.game.mod.definition.*;
 import com.divinitor.dn.lib.game.mod.pak.ManagedPak;
 import com.divinitor.dn.lib.game.mod.pak.ManagedPakIndexEntry;
@@ -48,11 +49,20 @@ public class SingleModCompiler implements ModCompiler {
         this.tableEditor = new TableEditor(this.assetAccessService);
     }
 
+    private void checkKitCompilerVersion(ModPackage modPackage) throws UnsupportedVersionException {
+        BuildInfo build = modPackage.getBuild();
+        if (build.getKitVersion().compareTo(ModKit.KIT_VERSION) > 0) {
+            throw new UnsupportedVersionException(ModKit.KIT_VERSION, build.getKitVersion());
+        }
+    }
+
     @Override
     public BuildComputeResults compute() {
         if (this.modPack == null) {
             throw new IllegalStateException("ModPackage not specified");
         }
+
+        this.checkKitCompilerVersion(this.modPack);
 
         if (this.buildComputeResults != null) {
             return this.buildComputeResults;
@@ -99,7 +109,6 @@ public class SingleModCompiler implements ModCompiler {
             }
         }
 
-        //  TODO table edits
         if (build.getEditTable() != null) {
             for (TableEditDirective directive : build.getEditTable()) {
                 String tableName = directive.getTableName();
@@ -162,11 +171,10 @@ public class SingleModCompiler implements ModCompiler {
 
         mPak.setFileIndex(new ManagedPakIndexEntry[mPak.getFileCount()]);
 
-        byte[] buffer = new byte[8192];
         LongHashFunction xx = LongHashFunction.xx();
         ManagedPakIndexEntry[] fileIndex = mPak.getFileIndex();
 
-        long end = 0;
+        long end;
 
         try (FileChannel channel = FileChannel.open(this.target, WRITE, CREATE, TRUNCATE_EXISTING, SPARSE)) {
             //  We'll write the header later

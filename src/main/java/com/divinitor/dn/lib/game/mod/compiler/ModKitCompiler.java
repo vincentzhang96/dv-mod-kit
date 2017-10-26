@@ -125,6 +125,7 @@ public class ModKitCompiler implements VersionCached.Versioned, ModCompiler {
             }
 
             //  TODO table edits
+            //  Implementation has to be different from SingleModCompiler since we have to merge table edits together
         }
 
         destinationFiles.asMap().entrySet().stream()

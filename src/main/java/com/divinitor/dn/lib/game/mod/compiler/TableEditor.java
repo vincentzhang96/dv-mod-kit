@@ -3,7 +3,6 @@ package com.divinitor.dn.lib.game.mod.compiler;
 import co.phoenixlab.dn.subfile.dnt.Dnt;
 import co.phoenixlab.dn.subfile.dnt.DntColumn;
 import co.phoenixlab.dn.subfile.dnt.DntReader;
-import co.phoenixlab.dn.util.DnStringUtils;
 import co.phoenixlab.dn.util.LittleEndianDataOutputStream;
 import com.divinitor.dn.lib.game.mod.DnAssetAccessService;
 import com.divinitor.dn.lib.game.mod.definition.TableEditDirective;
@@ -58,7 +57,7 @@ public class TableEditor {
 
         dout.write(body.data);
 
-        dout.writeInt(5);
+        dout.write(5);
         dout.write("THEND".getBytes(StandardCharsets.UTF_8));
 
         dout.flush();
@@ -70,18 +69,31 @@ public class TableEditor {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         TableRow[] add = directive.getAdd();
+        if (add == null) {
+            add = new TableRow[0];
+        }
+
         Arrays.sort(add, Comparator.comparingInt(TableRow::getRowId));
 
         Queue<TableRow> additions = new ArrayDeque<>(add.length);
         additions.addAll(Arrays.asList(add));
 
         TIntObjectMap<TableRow> mod = new TIntObjectHashMap<>();
-        for (TableRow modRow : directive.getModify()) {
+        TableRow[] modify = directive.getModify();
+        if (modify == null) {
+            modify = new TableRow[0];
+        }
+
+        for (TableRow modRow : modify) {
             mod.put(modRow.getRowId(), modRow);
         }
 
         TIntSet delete = new TIntHashSet();
-        delete.addAll(directive.getDelete());
+
+        int[] deleteIds = directive.getDelete();
+        if (deleteIds != null) {
+            delete.addAll(deleteIds);
+        }
 
         int rows = 0;
         Dnt dnt = handle.getDnt();
@@ -164,7 +176,7 @@ public class TableEditor {
                 }
                 case TEXT: {
                     String value = val == null ? "" : String.valueOf(val);
-                    DnStringUtils.writeShortLengthPrefixedString(value, dout);
+                    this.writeDntString(dout, value);
                     break;
                 }
                 case FLOAT:
@@ -183,7 +195,14 @@ public class TableEditor {
             }
         }
 
+        dout.flush();
         return outputStream.toByteArray();
+    }
+
+    private void writeDntString(LittleEndianDataOutputStream dout, String value) throws IOException {
+        byte[] buf = value.getBytes(StandardCharsets.UTF_8);
+        dout.writeShort(buf.length);
+        dout.write(buf);
     }
 
     private byte[] modify(DntReader.DntHandle handle, TableRow row, DntReader.DntHandle.RowReader rr)
@@ -208,7 +227,7 @@ public class TableEditor {
                     }
                     case TEXT: {
                         String value = rr.getString(i);
-                        DnStringUtils.writeShortLengthPrefixedString(value, dout);
+                        this.writeDntString(dout, value);
                         break;
                     }
                     case FLOAT:
@@ -233,8 +252,8 @@ public class TableEditor {
                         break;
                     }
                     case TEXT: {
-                        String value = val == null ? "" : String.valueOf(val);
-                        DnStringUtils.writeShortLengthPrefixedString(value, dout);
+                        String value = String.valueOf(val);
+                        this.writeDntString(dout, value);
                         break;
                     }
                     case FLOAT:
