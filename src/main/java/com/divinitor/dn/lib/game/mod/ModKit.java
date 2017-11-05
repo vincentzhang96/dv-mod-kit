@@ -25,7 +25,7 @@ import java.util.zip.ZipFile;
 public class ModKit {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(ModKit.class);
-    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 5);
+    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 6);
 
     @Getter
     private final Path root;

@@ -7,10 +7,13 @@ import com.divinitor.dn.lib.game.mod.CompileException;
 import com.divinitor.dn.lib.game.mod.DnAssetAccessService;
 import com.divinitor.dn.lib.game.mod.ModKit;
 import com.divinitor.dn.lib.game.mod.UnsupportedVersionException;
+import com.divinitor.dn.lib.game.mod.compiler.processors.Processors;
 import com.divinitor.dn.lib.game.mod.definition.*;
 import com.divinitor.dn.lib.game.mod.pak.ManagedPak;
 import com.divinitor.dn.lib.game.mod.pak.ManagedPakIndexEntry;
 import com.divinitor.dn.lib.game.mod.pak.ManagedPakModIndexEntry;
+import com.divinitor.dn.lib.game.mod.util.Utils;
+import com.google.common.base.Strings;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import net.openhft.hashing.LongHashFunction;
@@ -104,8 +107,14 @@ public class SingleModCompiler implements ModCompiler {
 
                 String dest = directive.getDest();
                 destinationFiles.put(dest, this.modPack.getId());
+                Utils.ThrowingSupplier<byte[]> source;
+                if (Strings.isNullOrEmpty(directive.getProcessor())) {
+                    source = packSource(this.modPack, src);
+                } else {
+                    source = Processors.getProcessor(directive.getProcessor()).process(this.modPack, src);
+                }
 
-                steps.add(new FileBuildStep(this.modPack, dest, packSource(this.modPack, src)));
+                steps.add(new FileBuildStep(this.modPack, dest, source));
             }
         }
 

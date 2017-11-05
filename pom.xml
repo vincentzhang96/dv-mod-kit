@@ -6,7 +6,7 @@
 
     <groupId>com.divinitor.dn.lib.game.mod</groupId>
     <artifactId>dv-modkit</artifactId>
-    <version>0.1.5-SNAPSHOT</version>
+    <version>0.1.6-SNAPSHOT</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -50,7 +50,7 @@
         <dependency>
             <groupId>co.phoenixlab.dn</groupId>
             <artifactId>DNSubfile</artifactId>
-            <version>0.7.1</version>
+            <version>0.8.1</version>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
