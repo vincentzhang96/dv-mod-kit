@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -25,7 +27,7 @@ import java.util.zip.ZipFile;
 public class ModKit {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(ModKit.class);
-    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 6);
+    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 7);
 
     @Getter
     private final Path root;
@@ -154,6 +156,23 @@ public class ModKit {
         }
     }
 
+    public Path resolveModPackagePath(ModPackage modPackage, String path) throws IOException {
+        String id = modPackage.getId();
+        Path moduleRepo = this.root.resolve("modkit").resolve("modpacks");
+        //  Check for a ZIP
+        Path modZip = moduleRepo.resolve(id + ".zip");
+        Path modDir = moduleRepo.resolve(id).resolve(modPackage.getVersion().toString());
+        Path filePath = modDir.resolve(path);
+        if (Files.isRegularFile(modZip)) {
+            final FileSystem zipFs = FileSystems.newFileSystem(modZip, null);
+            return zipFs.getPath(path);
+        } else if (Files.isDirectory(modDir) && Files.exists(filePath)) {
+            return filePath;
+        } else {
+            throw new FileNotFoundException(id);
+        }
+    }
+
     public boolean modPackageHasFile(ModPackage modPackage, String file) {
         try {
             String id = modPackage.getId();
@@ -166,7 +185,7 @@ public class ModKit {
                 ZipEntry entry = zipFile.getEntry(file);
                 return entry != null;
             } else {
-                return Files.isDirectory(modDir) && Files.isRegularFile(modDir.resolve(file));
+                return Files.isDirectory(modDir) && Files.exists(modDir.resolve(file));
             }
         } catch (Exception e) {
             return false;

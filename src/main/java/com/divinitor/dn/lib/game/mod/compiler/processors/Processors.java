@@ -6,6 +6,8 @@ public class Processors {
         switch (processor.toLowerCase()) {
             case "skn":
                 return new SknProcessor();
+            case "actkit":
+                return new ActKitProcessor();
             default:
                 throw new UnsupportedOperationException("Unsupported processor " + processor);
         }
