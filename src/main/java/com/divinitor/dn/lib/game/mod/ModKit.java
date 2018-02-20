@@ -27,7 +27,7 @@ import java.util.zip.ZipFile;
 public class ModKit {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(ModKit.class);
-    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 7);
+    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 8);
 
     @Getter
     private final Path root;
@@ -69,6 +69,34 @@ public class ModKit {
         //  We can reasonably assume this is a game directory now
     }
 
+    public ModPackage getPackage(String id, Version version) throws IOException {
+        Gson gson = this.getGson();
+        Path moduleRepo = this.root.resolve("modkit").resolve("modpacks");
+        Path modDir = moduleRepo.resolve(id);
+        if (Files.isDirectory(modDir)) {
+            Path info = modDir.resolve(version.toString()).resolve("modinfo.json");
+            if (!Files.isRegularFile(info)) {
+                throw new FileNotFoundException("Missing modinfo.json for " + id + " v" + version.toString());
+            }
+
+            try (BufferedReader reader = Files.newBufferedReader(info, StandardCharsets.UTF_8)) {
+                ModPackage ret = gson.fromJson(reader, ModPackage.class);
+                if (!version.equals(ret.getVersion())) {
+                    throw new IllegalArgumentException("modinfo.json reports a different version than its module");
+                }
+
+                if (!id.equalsIgnoreCase(ret.getId())) {
+                    throw new IllegalArgumentException("modinfo.json reports a different ID than its module");
+                }
+
+                ret.setKit(this);
+                return ret;
+            }
+        } else {
+            throw new FileNotFoundException(id);
+        }
+    }
+
     public ModPackage getLatest(String id) throws IOException {
         Gson gson = this.getGson();
         Path moduleRepo = this.root.resolve("modkit").resolve("modpacks");
@@ -97,8 +125,7 @@ public class ModKit {
                     .map(Path::getFileName)
                     .map(Path::toString)
                     .map(Version::valueOf)
-                    .sorted(Comparator.reverseOrder())
-                    .findFirst()
+                    .min(Comparator.reverseOrder())
                     .orElseThrow(() -> new FileNotFoundException("No versions found for " + id));
             }
 
