@@ -8,6 +8,8 @@ public class Processors {
                 return new SknProcessor();
             case "actkit":
                 return new ActKitProcessor();
+            case "uistring":
+                return new UiStringProcessor();
             default:
                 throw new UnsupportedOperationException("Unsupported processor " + processor);
         }

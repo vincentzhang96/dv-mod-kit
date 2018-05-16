@@ -53,6 +53,11 @@ public class ModPackage {
      */
     protected BuildInfo build;
 
+    /**
+     * (Optional) Custom prefix for the resulting pak file. Defaults to "00Resource_dvmk_".
+     */
+    protected String customPrefix;
+
     @Override
     public String toString() {
         return id + ":" + version.toString();

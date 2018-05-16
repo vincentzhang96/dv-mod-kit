@@ -13,4 +13,5 @@ public class TableEditDirective {
     protected TableRow[] add;
     protected TableRow[] modify;
     protected int[] delete;
+    private Integer compressionLevel;
 }

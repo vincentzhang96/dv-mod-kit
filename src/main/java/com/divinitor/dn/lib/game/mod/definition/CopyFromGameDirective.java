@@ -11,6 +11,7 @@ public class CopyFromGameDirective {
 
     protected String source;
     protected String dest;
+    private Integer compressionLevel;
 
     @Override
     public String toString() {

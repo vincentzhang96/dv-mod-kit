@@ -108,7 +108,8 @@ public class ModKitCompiler implements VersionCached.Versioned, ModCompiler {
                 String dest = directive.getDest();
                 destinationFiles.put(dest, modPack.getId());
 
-                steps.add(new FileBuildStep(modPack, dest, gameSource(assetAccessService, src)));
+                steps.add(new FileBuildStep(modPack, dest, gameSource(assetAccessService, src),
+                    directive.getCompressionLevel()));
             }
 
             for (CopyFromPackDirective directive : build.getAdd()) {
@@ -121,7 +122,8 @@ public class ModKitCompiler implements VersionCached.Versioned, ModCompiler {
                 String dest = directive.getDest();
                 destinationFiles.put(dest, modPack.getId());
 
-                steps.add(new FileBuildStep(modPack, dest, packSource(modPack, src)));
+                steps.add(new FileBuildStep(modPack, dest, packSource(modPack, src),
+                    directive.getCompressionLevel()));
             }
 
             //  TODO table edits

@@ -2,6 +2,9 @@ package com.divinitor.dn.lib.game.mod;
 
 import com.divinitor.dn.lib.game.mod.compiler.ModKitCompiler;
 import com.divinitor.dn.lib.game.mod.compiler.SingleModCompiler;
+import com.divinitor.dn.lib.game.mod.constraints.ConstraintViolationException;
+import com.divinitor.dn.lib.game.mod.constraints.ModPackageConstraints;
+import com.divinitor.dn.lib.game.mod.definition.BuildInfo;
 import com.divinitor.dn.lib.game.mod.definition.ModPackage;
 import com.divinitor.dn.lib.game.mod.util.InstantGsonAdapter;
 import com.divinitor.dn.lib.game.mod.util.VersionGsonAdapter;
@@ -27,7 +30,7 @@ import java.util.zip.ZipFile;
 public class ModKit {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(ModKit.class);
-    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 8);
+    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 11);
 
     @Getter
     private final Path root;
@@ -217,6 +220,38 @@ public class ModKit {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public ModPackage createModPackage(ModPackage packageDefinition)
+        throws IOException, ConstraintViolationException {
+        ModPackageConstraints.check(packageDefinition);
+
+        ModPackage copy = new ModPackage();
+        copy.setAuthor(packageDefinition.getAuthor());
+        copy.setDescription(packageDefinition.getDescription());
+        //  Don't use the build provided
+        BuildInfo build = new BuildInfo();
+        build.setKitVersion(KIT_VERSION);
+        copy.setBuild(build);
+        copy.setId(packageDefinition.getId());
+        copy.setName(packageDefinition.getName());
+        copy.setTimestamp(Instant.now());
+        copy.setVersion(packageDefinition.getVersion());
+        copy.setKit(this);
+
+        Path moduleRepo = this.root.resolve("modkit").resolve("modpacks");
+        Path modDir = moduleRepo.resolve(copy.getId());
+        Files.createDirectories(modDir);
+        Path versionDir = modDir.resolve(copy.getVersion().toString());
+        Files.createDirectories(versionDir);
+        Path defFile = versionDir.resolve("modinfo.json");
+
+        try (BufferedWriter writer = Files.newBufferedWriter(defFile, StandardCharsets.UTF_8)) {
+            this.getGson().toJson(copy, writer);
+            writer.flush();
+        }
+
+        return copy;
     }
 
     public Gson getGson() {

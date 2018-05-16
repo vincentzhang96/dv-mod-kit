@@ -13,6 +13,7 @@ public class CopyFromPackDirective {
     protected String source;
     protected String dest;
     protected String processor;
+    private Integer compressionLevel;
 
     @Override
     public String toString() {

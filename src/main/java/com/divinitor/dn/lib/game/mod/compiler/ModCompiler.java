@@ -28,5 +28,6 @@ public interface ModCompiler {
         private ModPackage mod;
         private String destination;
         private Utils.ThrowingSupplier<byte[]> source;
+        private Integer compressionLevel;
     }
 }

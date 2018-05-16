@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
@@ -93,7 +94,8 @@ public class SingleModCompiler implements ModCompiler {
                 String dest = directive.getDest();
                 destinationFiles.put(dest, this.modPack.getId());
 
-                steps.add(new FileBuildStep(this.modPack, dest, gameSource(this.assetAccessService, src)));
+                steps.add(new FileBuildStep(this.modPack, dest, gameSource(this.assetAccessService, src),
+                    directive.getCompressionLevel()));
             }
         }
 
@@ -114,7 +116,7 @@ public class SingleModCompiler implements ModCompiler {
                     source = Processors.getProcessor(directive.getProcessor()).process(this.modPack, src);
                 }
 
-                steps.add(new FileBuildStep(this.modPack, dest, source));
+                steps.add(new FileBuildStep(this.modPack, dest, source, directive.getCompressionLevel()));
             }
         }
 
@@ -138,7 +140,8 @@ public class SingleModCompiler implements ModCompiler {
                     continue;
                 }
 
-                steps.add(new FileBuildStep(this.modPack, dest, tableEditor.tableEdit(tableName, directive)));
+                steps.add(new FileBuildStep(this.modPack, dest, tableEditor.tableEdit(tableName, directive),
+                    directive.getCompressionLevel()));
             }
         }
 
@@ -199,7 +202,7 @@ public class SingleModCompiler implements ModCompiler {
                     OutputStream out = Channels.newOutputStream(channel);   //  DO NOT CLOSE THIS STREAM
                     DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(
                         out,
-                        new Deflater(Deflater.BEST_COMPRESSION));
+                        new Deflater(Optional.ofNullable(step.getCompressionLevel()).orElse(Deflater.BEST_COMPRESSION)));
                     deflaterOutputStream.write(data);
                     deflaterOutputStream.finish();
                     deflaterOutputStream.flush();
