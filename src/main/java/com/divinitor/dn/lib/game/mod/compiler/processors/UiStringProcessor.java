@@ -1,5 +1,6 @@
 package com.divinitor.dn.lib.game.mod.compiler.processors;
 
+import com.divinitor.dn.lib.game.mod.ModKit;
 import com.divinitor.dn.lib.game.mod.definition.ModPackage;
 import com.divinitor.dn.lib.game.mod.definition.UiStringEditDirective;
 import com.divinitor.dn.lib.game.mod.util.Utils;
@@ -10,22 +11,63 @@ import com.google.gson.GsonBuilder;
 import javax.xml.stream.*;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 public class UiStringProcessor implements Processor {
+    private Gson gson = new GsonBuilder()
+        .create();
+
     @Override
     public Utils.ThrowingSupplier<byte[]> process(ModPackage modPack, String src) {
         return () -> {
-            Gson gson = new GsonBuilder()
-                .create();
-            byte[] data = modPack.getAsset(src);
-            UiStringEditDirective directive = gson.fromJson(new InputStreamReader(new ByteArrayInputStream(data)),
-                UiStringEditDirective.class);
+            UiStringEditDirective directive = this.load(modPack, src);
             byte[] uiStr = modPack.getKit().getAssetAccessService().getAsset("uistring.xml");
             return this.patch(directive, uiStr);
         };
+    }
+
+    private UiStringEditDirective load(ModPackage modPack, String src) throws IOException {
+        byte[] data = modPack.getAsset(src);
+        UiStringEditDirective directive = gson.fromJson(new InputStreamReader(new ByteArrayInputStream(data)),
+            UiStringEditDirective.class);
+        String prefix = directive.getIncludePrefix();
+        if (prefix == null) {
+            prefix = "";
+        }
+
+        if (directive.getAdd() == null) {
+            directive.setAdd(new HashMap<>());
+        }
+
+        if (directive.getEdit() == null) {
+            directive.setEdit(new ArrayList<>());
+        }
+
+        Set<UiStringEditDirective.UiStringEdit> edits = new HashSet<>(directive.getEdit());
+
+        if (directive.getInclude() != null) {
+            for (String s : directive.getInclude()) {
+                String path = prefix + s;
+                UiStringEditDirective subDirective = this.load(modPack, path);
+
+                // Top level directives override lower level ones
+                if (subDirective.getAdd() != null) {
+                    subDirective.getAdd().forEach(directive.getAdd()::putIfAbsent);
+                }
+
+                if (subDirective.getEdit() != null) {
+                    // Set<> ensures that if the element already exists then it is not updated
+                    edits.addAll(subDirective.getEdit());
+                }
+            }
+        }
+
+        directive.setEdit(new ArrayList<>(edits));
+
+        return directive;
     }
 
     private byte[] patch(UiStringEditDirective edit, byte[] uiStr) {
@@ -62,18 +104,32 @@ public class UiStringProcessor implements Processor {
 
         //  Apply changes
         //  TODO MID collisions for adds? or do we consider this a forced update
-        entries.putAll(edit.getAdd());
-        for (UiStringEditDirective.UiStringEdit uiStringEdit : edit.getEdit()) {
-            String match = uiStringEdit.getMatch();
-            if (!Strings.isNullOrEmpty(match)) {
-                //  Verify that it matches, otherwise don't modify
-                if (!match.equals(entries.get(uiStringEdit.getMid()))) {
-                    continue;
-                }
-            }
+        if (edit.getAdd() != null) {
+            entries.putAll(edit.getAdd());
+        }
 
-            if (entries.containsKey(uiStringEdit.getMid())) {
-                entries.put(uiStringEdit.getMid(), uiStringEdit.getValue());
+        if (edit.getEdit() != null) {
+            for (UiStringEditDirective.UiStringEdit uiStringEdit : edit.getEdit()) {
+                String match = uiStringEdit.getMatch();
+                if (!Strings.isNullOrEmpty(match)) {
+                    //  Verify that it matches, otherwise don't modify
+                    String originalValue = entries.get(uiStringEdit.getMid());
+                    // BYTE COMPARE
+                    byte[] matchBytes = match.getBytes(StandardCharsets.UTF_8);
+                    byte[] originalBytes = match.getBytes(StandardCharsets.UTF_8);
+                    if (!Arrays.equals(matchBytes, originalBytes)) {
+                        ModKit.LOGGER.warn("MID {} does not match: Got \"{}\", expected \"{}\". Skipping.",
+                            uiStringEdit.getMid(), originalValue, match);
+                        continue;
+                    }
+                }
+
+                if (entries.containsKey(uiStringEdit.getMid())) {
+                    entries.put(uiStringEdit.getMid(), uiStringEdit.getValue());
+                } else {
+                    ModKit.LOGGER.warn("MID {} is not in the original uistring.xml. Skipping.",
+                        uiStringEdit.getMid());
+                }
             }
         }
 
@@ -90,7 +146,7 @@ public class UiStringProcessor implements Processor {
             for (Map.Entry<String, String> entry : entries.entrySet()) {
                 writer.writeStartElement("message");
                 writer.writeAttribute("mid", entry.getKey());
-                writer.writeCData(entry.getValue());
+                writer.writeCData(entry.getValue().replace("\n", "\\n"));
                 writer.writeEndElement();
                 writer.writeCharacters("\n");
             }

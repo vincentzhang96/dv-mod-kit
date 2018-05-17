@@ -6,7 +6,7 @@
 
     <groupId>com.divinitor.dn.lib.game.mod</groupId>
     <artifactId>dv-modkit</artifactId>
-    <version>0.1.11-SNAPSHOT</version>
+    <version>0.1.12-SNAPSHOT</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
