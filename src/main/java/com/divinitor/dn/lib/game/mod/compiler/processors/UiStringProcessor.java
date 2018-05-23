@@ -31,7 +31,7 @@ public class UiStringProcessor implements Processor {
 
     private UiStringEditDirective load(ModPackage modPack, String src) throws IOException {
         byte[] data = modPack.getAsset(src);
-        UiStringEditDirective directive = gson.fromJson(new InputStreamReader(new ByteArrayInputStream(data)),
+        UiStringEditDirective directive = gson.fromJson(new InputStreamReader(new ByteArrayInputStream(data), StandardCharsets.UTF_8),
             UiStringEditDirective.class);
         String prefix = directive.getIncludePrefix();
         if (prefix == null) {
@@ -74,7 +74,7 @@ public class UiStringProcessor implements Processor {
         LinkedHashMap<String, String> entries = new LinkedHashMap<>();
         XMLInputFactory factory = XMLInputFactory.newInstance();
         try {
-            XMLStreamReader reader = factory.createXMLStreamReader(new ByteArrayInputStream(uiStr));
+            XMLStreamReader reader = factory.createXMLStreamReader(new ByteArrayInputStream(uiStr), "UTF-8");
             String localName;
             String mid = "";
             String content = "";
@@ -116,10 +116,10 @@ public class UiStringProcessor implements Processor {
                     String originalValue = entries.get(uiStringEdit.getMid());
                     // BYTE COMPARE
                     byte[] matchBytes = match.getBytes(StandardCharsets.UTF_8);
-                    byte[] originalBytes = match.getBytes(StandardCharsets.UTF_8);
+                    byte[] originalBytes = originalValue.getBytes(StandardCharsets.UTF_8);
                     if (!Arrays.equals(matchBytes, originalBytes)) {
                         ModKit.LOGGER.warn("MID {} does not match: Got \"{}\", expected \"{}\". Skipping.",
-                            uiStringEdit.getMid(), originalValue, match);
+                            uiStringEdit.getMid(), new String(originalBytes, StandardCharsets.UTF_8), new String(matchBytes, StandardCharsets.UTF_8));
                         continue;
                     }
                 }
@@ -146,7 +146,7 @@ public class UiStringProcessor implements Processor {
             for (Map.Entry<String, String> entry : entries.entrySet()) {
                 writer.writeStartElement("message");
                 writer.writeAttribute("mid", entry.getKey());
-                writer.writeCData(entry.getValue().replace("\n", "\\n"));
+                writer.writeCData(entry.getValue());
                 writer.writeEndElement();
                 writer.writeCharacters("\n");
             }
