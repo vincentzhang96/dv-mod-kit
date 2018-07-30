@@ -118,9 +118,20 @@ public class UiStringProcessor implements Processor {
                     byte[] matchBytes = match.getBytes(StandardCharsets.UTF_8);
                     byte[] originalBytes = originalValue.getBytes(StandardCharsets.UTF_8);
                     if (!Arrays.equals(matchBytes, originalBytes)) {
-                        ModKit.LOGGER.warn("MID {} does not match: Got \"{}\", expected \"{}\". Skipping.",
-                            uiStringEdit.getMid(), new String(originalBytes, StandardCharsets.UTF_8), new String(matchBytes, StandardCharsets.UTF_8));
-                        continue;
+                        //  For some reason ED decided it wanted to write MIDs in directly, so treat those as matching
+                        boolean valid = false;
+                        try {
+                            if (Long.parseUnsignedLong(originalValue) == Long.parseUnsignedLong(uiStringEdit.getMid())) {
+                                valid = true;
+                            }
+                        } catch (Exception e) {
+                        }
+
+                        if (!valid) {
+                            ModKit.LOGGER.warn("MID {} does not match: Got \"{}\", expected \"{}\". Skipping.",
+                                uiStringEdit.getMid(), new String(originalBytes, StandardCharsets.UTF_8), new String(matchBytes, StandardCharsets.UTF_8));
+                            continue;
+                        }
                     }
                 }
 

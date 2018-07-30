@@ -220,7 +220,7 @@ public class SingleModCompiler implements ModCompiler {
                         .build();
                     fileIndex[i] = entry;
                 } catch (IOException e) {
-                    throw e;
+                    throw new IOException("IO exception for asset " + step.getDestination(), e);
                 } catch (Exception e) {
                     throw new CompileException("Unable to package asset " + step.getDestination(), e);
                 } finally {

@@ -58,6 +58,9 @@ public class ModPackage {
      */
     protected String customPrefix;
 
+    @Setter
+    protected transient boolean isLatest;
+
     @Override
     public String toString() {
         return id + ":" + version.toString();

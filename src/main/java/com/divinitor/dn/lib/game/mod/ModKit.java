@@ -119,28 +119,50 @@ public class ModKit {
                 return ret;
             }
         } else if (Files.isDirectory(modDir)) {
-            Version latest;
-            //  Find latest version
-            try (Stream<Path> stream = Files.walk(modDir, 1)) {
-                latest = stream
-                    .filter(Files::isDirectory)
-                    .filter((d) -> !modDir.equals(d))
-                    .map(Path::getFileName)
-                    .map(Path::toString)
-                    .map(Version::valueOf)
-                    .min(Comparator.reverseOrder())
-                    .orElseThrow(() -> new FileNotFoundException("No versions found for " + id));
+            Version latest = null;
+
+            //  Look for a "latest" folder
+            Path latestFolder = modDir.resolve("latest");
+            boolean checkVer = true;
+            String dirName = null;
+            if (Files.isDirectory(latestFolder)) {
+                checkVer = false;
+                dirName = "latest";
             }
 
-            Path info = modDir.resolve(latest.toString()).resolve("modinfo.json");
+            if (dirName == null) {
+                //  Find latest version
+                try (Stream<Path> stream = Files.walk(modDir, 1)) {
+                    latest = stream
+                        .filter(Files::isDirectory)
+                        .filter((d) -> !modDir.equals(d))
+                        .map(Path::getFileName)
+                        .map(Path::toString)
+                        .map(Version::valueOf)
+                        .min(Comparator.reverseOrder())
+                        .orElseThrow(() -> new FileNotFoundException("No versions found for " + id));
+
+                    dirName = latest.toString();
+                }
+            }
+
+            Path info = modDir.resolve(dirName).resolve("modinfo.json");
             if (!Files.isRegularFile(info)) {
-                throw new FileNotFoundException("Missing modinfo.json for " + id + " v" + latest.toString());
+                if (latest != null) {
+                    throw new FileNotFoundException("Missing modinfo.json for " + id + " v" + latest.toString());
+                } else {
+                    throw new FileNotFoundException("Missing modinfo.json for " + id + " (latest)");
+                }
             }
 
             try (BufferedReader reader = Files.newBufferedReader(info, StandardCharsets.UTF_8)) {
                 ModPackage ret = gson.fromJson(reader, ModPackage.class);
-                if (!latest.equals(ret.getVersion())) {
+                if (checkVer && !latest.equals(ret.getVersion())) {
                     throw new IllegalArgumentException("modinfo.json reports a different version than its module");
+                }
+
+                if (latest == null) {
+                    ret.setLatest(true);
                 }
 
                 if (!id.equalsIgnoreCase(ret.getId())) {
@@ -160,7 +182,13 @@ public class ModKit {
         Path moduleRepo = this.root.resolve("modkit").resolve("modpacks");
         //  Check for a ZIP
         Path modZip = moduleRepo.resolve(id + ".zip");
-        Path modDir = moduleRepo.resolve(id).resolve(modPackage.getVersion().toString());
+        String ver;
+        if (modPackage.isLatest()) {
+            ver = "latest";
+        } else {
+            ver = modPackage.getVersion().toString();
+        }
+        Path modDir = moduleRepo.resolve(id).resolve(ver);
         Path filePath = modDir.resolve(file);
         if (Files.isRegularFile(modZip)) {
             ZipFile zipFile = new ZipFile(modZip.toFile());
@@ -191,7 +219,13 @@ public class ModKit {
         Path moduleRepo = this.root.resolve("modkit").resolve("modpacks");
         //  Check for a ZIP
         Path modZip = moduleRepo.resolve(id + ".zip");
-        Path modDir = moduleRepo.resolve(id).resolve(modPackage.getVersion().toString());
+        String ver;
+        if (modPackage.isLatest()) {
+            ver = "latest";
+        } else {
+            ver = modPackage.getVersion().toString();
+        }
+        Path modDir = moduleRepo.resolve(id).resolve(ver);
         Path filePath = modDir.resolve(path);
         if (Files.isRegularFile(modZip)) {
             final FileSystem zipFs = FileSystems.newFileSystem(modZip, null);
@@ -209,7 +243,13 @@ public class ModKit {
             Path moduleRepo = this.root.resolve("modkit").resolve("modpacks");
             //  Check for a ZIP
             Path modZip = moduleRepo.resolve(id + ".zip");
-            Path modDir = moduleRepo.resolve(id).resolve(modPackage.getVersion().toString());
+            String ver;
+            if (modPackage.isLatest()) {
+                ver = "latest";
+            } else {
+                ver = modPackage.getVersion().toString();
+            }
+            Path modDir = moduleRepo.resolve(id).resolve(ver);
             if (Files.isRegularFile(modZip)) {
                 ZipFile zipFile = new ZipFile(modZip.toFile());
                 ZipEntry entry = zipFile.getEntry(file);
