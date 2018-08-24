@@ -25,10 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
@@ -187,9 +184,18 @@ public class SingleModCompiler implements ModCompiler {
         ManagedPakIndexEntry[] fileIndex = mPak.getFileIndex();
 
         long end;
+        ErisInfo eris = modPack.getEris();
+        boolean useEris = eris != null;
+        int xorKey = 0;
+        if (useEris) {
+            if (eris.getXorKey() == 0) {
+                eris.setXorKey(new Random().nextInt());
+            }
+
+            xorKey = eris.getXorKey();
+        }
 
         try (FileChannel channel = FileChannel.open(this.target, WRITE, CREATE, TRUNCATE_EXISTING, SPARSE)) {
-            //  We'll write the header later
             channel.position(ManagedPak.SIZEOF_HEADER);
             int i = 0;
             for (FileBuildStep step : steps) {
@@ -240,15 +246,7 @@ public class SingleModCompiler implements ModCompiler {
             //  Write pak index
             mPak.setFileIndexTableOffset((int) channel.position());
             for (ManagedPakIndexEntry entry : fileIndex) {
-                DnStringUtils.writeFixedBufferString(entry.getFilePath().replace('/', '\\'),
-                    ManagedPakIndexEntry.SIZEOF_FILE_PATH, out);
-                out.writeInt(entry.getRawSize());
-                out.writeInt(entry.getRealSize());
-                out.writeInt(entry.getCompressedSize());
-                out.writeInt(entry.getOffset());
-                out.writeInt(entry.getUnknownA());
-                out.writeLong(entry.getContentHash());
-                out.write(entry.getRemainder());
+                writeIndexEntry(useEris, xorKey, out, entry);
             }
 
             end = channel.position();
@@ -260,18 +258,62 @@ public class SingleModCompiler implements ModCompiler {
 
             channel.position(0);
             out = new LittleEndianDataOutputStream(Channels.newOutputStream(channel));
-            DnStringUtils.writeFixedBufferString(mPak.getMagicNumber(), ManagedPak.SIZEOF_MAGIC_NUMBER, out);
-            out.writeShort(mPak.getManagedMajorVersion());
-            out.writeShort(mPak.getManagedMinorVersion());
-            out.writeInt(mPak.getModPackCount());
-            out.writeInt(mPak.getModPackIndexTableOffset());
+            if (useEris) {
+                out.writeInt(0x53495245);                                   //  4
+                out.writeShort(1);                                          //  6
+                out.writeShort(0);                                          //  8
+                out.writeInt(0); // TODO custominfo                         //  12
+                out.writeInt(0); // basic                                   //  16
+                out.writeInt(xorKey);                                           //  20
+                out.writeInt(xorKey ^ ~mPak.getFileCount());                //  24
+                out.writeInt(xorKey ^ ~mPak.getFileIndexTableOffset());     //  28
+                byte[] buffer = new byte[100];
+                Random random = new Random(xorKey);
+                random.nextBytes(buffer);
+                out.write(buffer);                                              //  128
+                out.writeShort(mPak.getManagedMajorVersion());                  //  130
+                out.writeShort(mPak.getManagedMinorVersion());                  //  132
+                out.writeInt(mPak.getModPackCount());                           //  136
+                out.writeInt(mPak.getModPackIndexTableOffset());                //  140
 
-            byte[] headerBuffer = new byte[ManagedPak.SIZEOF_BUFFER];
-            out.write(headerBuffer);
+                //  Fake header
+                byte[] headerBuffer = new byte[ManagedPak.SIZEOF_BUFFER];
+                random.nextBytes(headerBuffer);
+                out.write(headerBuffer);                                        //  256
+                out.writeInt(mPak.getVersion());                                //  260
+                out.writeInt(1);                                            //  264
+                out.writeInt(272);                                          //  268
+                out.writeInt(0);                                            //  272
 
-            out.writeInt(mPak.getVersion());
-            out.writeInt(mPak.getFileCount());
-            out.writeInt(mPak.getFileIndexTableOffset());
+                //  Fake entry
+                ManagedPakIndexEntry entry = ManagedPakIndexEntry.builder()
+                        .filePath("\\resource\\sharedeffect\\dnshaders.dat")
+                        .offset(268)
+                        .compressedSize(1)
+                        .rawSize(1)
+                        .realSize(1)
+                        .unknownA(0)
+                        .contentHash(0)
+                        .remainder(ManagedPakIndexEntry.REMAINDER_INSTANCE)
+                        .build();
+                this.writeIndexEntry(true, xorKey, out, entry);         //  588
+                byte[] remainingBuffer = new byte[436];
+                random.nextBytes(remainingBuffer);
+                out.write(remainingBuffer);                                     //  1024
+            } else {
+                DnStringUtils.writeFixedBufferString(mPak.getMagicNumber(), ManagedPak.SIZEOF_MAGIC_NUMBER, out);
+                out.writeShort(mPak.getManagedMajorVersion());
+                out.writeShort(mPak.getManagedMinorVersion());
+                out.writeInt(mPak.getModPackCount());
+                out.writeInt(mPak.getModPackIndexTableOffset());
+
+                byte[] headerBuffer = new byte[ManagedPak.SIZEOF_BUFFER];
+                out.write(headerBuffer);
+
+                out.writeInt(mPak.getVersion());
+                out.writeInt(mPak.getFileCount());
+                out.writeInt(mPak.getFileIndexTableOffset());
+            }
         } catch (IOException e) {
             throw new CompileException("Failed to write output", e);
         }
@@ -282,6 +324,23 @@ public class SingleModCompiler implements ModCompiler {
         } catch (IOException e) {
             //  Don't care
         }
+    }
+
+    private void writeIndexEntry(boolean useEris, int xorKey, LittleEndianDataOutputStream out, ManagedPakIndexEntry entry) throws IOException {
+        DnStringUtils.writeFixedBufferString(entry.getFilePath().replace('/', '\\'),
+            ManagedPakIndexEntry.SIZEOF_FILE_PATH, out);
+        out.writeInt(entry.getRawSize());
+        out.writeInt(entry.getRealSize());
+        out.writeInt(entry.getCompressedSize());
+        // Crypt offset
+        int offset = entry.getOffset();
+        if (useEris) {
+            offset = xorKey ^ ~offset ^ ~entry.getRawSize();
+        }
+        out.writeInt(offset);
+        out.writeInt(entry.getUnknownA());
+        out.writeLong(entry.getContentHash());
+        out.write(entry.getRemainder());
     }
 
     public ModPackage getModPack() {

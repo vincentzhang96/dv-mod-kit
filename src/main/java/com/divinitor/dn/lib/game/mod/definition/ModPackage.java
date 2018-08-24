@@ -58,6 +58,11 @@ public class ModPackage {
      */
     protected String customPrefix;
 
+    /**
+     * (Optional) Divinitor Eris support
+     */
+    protected ErisInfo eris;
+
     @Setter
     protected transient boolean isLatest;
 
