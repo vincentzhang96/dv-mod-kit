@@ -18,6 +18,7 @@ import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import net.openhft.hashing.LongHashFunction;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -327,8 +328,16 @@ public class SingleModCompiler implements ModCompiler {
     }
 
     private void writeIndexEntry(boolean useEris, int xorKey, LittleEndianDataOutputStream out, ManagedPakIndexEntry entry) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        LittleEndianDataOutputStream laos = new LittleEndianDataOutputStream(baos);
         DnStringUtils.writeFixedBufferString(entry.getFilePath().replace('/', '\\'),
-            ManagedPakIndexEntry.SIZEOF_FILE_PATH, out);
+            ManagedPakIndexEntry.SIZEOF_FILE_PATH, laos);
+        byte[] name = baos.toByteArray();
+        if (useEris) {
+
+        }
+
+        out.write(name);
         out.writeInt(entry.getRawSize());
         out.writeInt(entry.getRealSize());
         out.writeInt(entry.getCompressedSize());
