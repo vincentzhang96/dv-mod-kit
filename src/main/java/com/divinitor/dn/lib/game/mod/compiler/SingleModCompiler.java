@@ -250,9 +250,26 @@ public class SingleModCompiler implements ModCompiler {
                 writeIndexEntry(useEris, xorKey, out, entry);
             }
 
+            if (useEris) {
+                // Eris trap entry
+                ManagedPakIndexEntry entry = ManagedPakIndexEntry.builder()
+                        .filePath("\\ERIS")
+                        // Unlikely for anything to actually be at that offset
+                        .offset((768 * 1024 * 1024) /* 805306368 */)
+                        .compressedSize(1)
+                        .rawSize(1)
+                        .realSize(1)
+                        .unknownA(0)
+                        .contentHash(0)
+                        .remainder(ManagedPakIndexEntry.REMAINDER_INSTANCE)
+                        .build();
+                writeIndexEntry(useEris, xorKey, out, entry);
+            }
+
             end = channel.position();
 
-            if (channel.position() <= ManagedPak.HALF_GIGABYTE) {
+            // Eris has a workaround
+            if (!useEris && channel.position() <= ManagedPak.HALF_GIGABYTE) {
                 channel.position(ManagedPak.HALF_GIGABYTE);
                 channel.write(ByteBuffer.wrap(new byte[1]));
             }
@@ -266,7 +283,7 @@ public class SingleModCompiler implements ModCompiler {
                 out.writeInt(0); // TODO custominfo                         //  12
                 out.writeInt(0); // basic                                   //  16
                 out.writeInt(xorKey);                                           //  20
-                out.writeInt(xorKey ^ ~mPak.getFileCount());                //  24
+                out.writeInt(xorKey ^ ~(mPak.getFileCount() + 1));// +1 for workaround
                 out.writeInt(xorKey ^ ~mPak.getFileIndexTableOffset());     //  28
                 byte[] buffer = new byte[100];
                 Random random = new Random(xorKey);
@@ -319,11 +336,14 @@ public class SingleModCompiler implements ModCompiler {
             throw new CompileException("Failed to write output", e);
         }
 
-        try {
-            Sparser.markSparse(this.target);
-            Sparser.markSparseRange(this.target, end, ManagedPak.HALF_GIGABYTE - end);
-        } catch (IOException e) {
-            //  Don't care
+        // Eris has a workaround to get around the 500 MB requirement
+        if (!useEris) {
+            try {
+                Sparser.markSparse(this.target);
+                Sparser.markSparseRange(this.target, end, ManagedPak.HALF_GIGABYTE - end);
+            } catch (IOException e) {
+                //  Don't care
+            }
         }
     }
 
