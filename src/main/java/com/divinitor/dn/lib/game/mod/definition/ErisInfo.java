@@ -18,5 +18,11 @@ public class ErisInfo {
      */
     protected int xorKey;
 
+    protected int type;
+
+    protected long serial;
+
+    protected String hwid;
+
     // TODO constraints and anti-tamper
 }

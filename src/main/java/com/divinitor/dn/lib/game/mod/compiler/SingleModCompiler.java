@@ -202,6 +202,7 @@ public class SingleModCompiler implements ModCompiler {
             for (FileBuildStep step : steps) {
                 try {
                     long start = channel.position();
+//                    System.out.printf("%s @ %d\n", step.getDestination(), start);
                     byte[] data = step.getSource().get();
 
                     long hash = xx.hashBytes(data);
@@ -268,6 +269,38 @@ public class SingleModCompiler implements ModCompiler {
 
             end = channel.position();
 
+            // Write in Eris additional data
+            long erisCustomInfoPos = channel.position() ;
+            if (useEris && (eris.getSerial() != 0 || !Strings.isNullOrEmpty(eris.getHwid()))) {
+                out = new LittleEndianDataOutputStream(Channels.newOutputStream(channel));
+                String hwid = eris.getHwid();
+                boolean hasHwid = !Strings.isNullOrEmpty(hwid) && hwid.length() == 64;
+                out.writeInt(xorKey ^ ~(hasHwid ? 48 : 16));
+
+                int lower = (int) (eris.getSerial() & 0xFFFFFFFFL);
+                int higher = (int) ((eris.getSerial() >> 32) & 0xFFFFFFFFL);
+                out.writeInt(xorKey ^ ~lower);
+                out.writeInt(xorKey ^ ~higher);
+
+                out.writeInt(xorKey ^ ~0);  // constraints
+                out.writeInt(xorKey ^ ~0);  // antitamper
+                if (hasHwid) {
+                    for (int j = 0; j < 32; j++) {
+                        char hi = hwid.charAt(j * 2);
+                        char lo = hwid.charAt(j * 2 + 1);
+                        int hv = Character.getNumericValue(hi);
+                        int lv = Character.getNumericValue(lo);
+                        int v = (((hv << 4) & 0b11110000) | (lv & 0b1111)) & 0xFF;
+                        out.writeByte(v);
+                    }
+                } else {
+                    byte[] filler = new byte[32];
+                    out.write(filler);
+                }
+            } else {
+                erisCustomInfoPos = 0;
+            }
+
             // Eris has a workaround
             if (!useEris && channel.position() <= ManagedPak.HALF_GIGABYTE) {
                 channel.position(ManagedPak.HALF_GIGABYTE);
@@ -280,8 +313,8 @@ public class SingleModCompiler implements ModCompiler {
                 out.writeInt(0x53495245);                                   //  4
                 out.writeShort(1);                                          //  6
                 out.writeShort(0);                                          //  8
-                out.writeInt(0); // TODO custominfo                         //  12
-                out.writeInt(0); // basic                                   //  16
+                out.writeInt((int) erisCustomInfoPos); // TODO custominfo  //  12
+                out.writeInt(eris.getType()); // basic                         //  16
                 out.writeInt(xorKey);                                           //  20
                 out.writeInt(xorKey ^ ~(mPak.getFileCount() + 1));// +1 for workaround
                 out.writeInt(xorKey ^ ~mPak.getFileIndexTableOffset());     //  28
@@ -314,7 +347,7 @@ public class SingleModCompiler implements ModCompiler {
                         .contentHash(0)
                         .remainder(ManagedPakIndexEntry.REMAINDER_INSTANCE)
                         .build();
-                this.writeIndexEntry(true, xorKey, out, entry);         //  588
+                this.writeIndexEntry(false, 0, out, entry);         //  588
                 byte[] remainingBuffer = new byte[436];
                 random.nextBytes(remainingBuffer);
                 out.write(remainingBuffer);                                     //  1024
@@ -354,7 +387,28 @@ public class SingleModCompiler implements ModCompiler {
             ManagedPakIndexEntry.SIZEOF_FILE_PATH, laos);
         byte[] name = baos.toByteArray();
         if (useEris) {
-
+            // Find the zero byte and encrypt as we go
+            int[] k0 = new int[] {
+                xorKey & 0xFF,
+                (xorKey >> 8) & 0xFF,
+                (xorKey >> 16) & 0xFF,
+                (xorKey >> 24) & 0xFF,
+            };
+            boolean zero = false;
+            Random random = new Random();
+            for (int i = 0; i < name.length; i++) {
+                if (zero) {
+                    name[i] = (byte) (random.nextInt() & 0xFF);
+                } else {
+                    int v0 = name[i] & 0xFF;
+                    int v = v0;
+                    v = k0[i % 4] ^ ~v;
+                    name[i] = (byte) (v & 0xFF);
+                    if (v0 == 0) {
+                        zero = true;
+                    }
+                }
+            }
         }
 
         out.write(name);
@@ -362,11 +416,11 @@ public class SingleModCompiler implements ModCompiler {
         out.writeInt(entry.getRealSize());
         out.writeInt(entry.getCompressedSize());
         // Crypt offset
-        int offset = entry.getOffset();
         if (useEris) {
-            offset = xorKey ^ ~offset ^ ~entry.getRawSize();
+            out.writeInt(~entry.getOffset());
+        } else {
+            out.writeInt(entry.getOffset());
         }
-        out.writeInt(offset);
         out.writeInt(entry.getUnknownA());
         out.writeLong(entry.getContentHash());
         out.write(entry.getRemainder());
