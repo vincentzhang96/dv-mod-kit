@@ -10,6 +10,8 @@ public class Processors {
                 return new ActKitProcessor();
             case "uistring":
                 return new UiStringProcessor();
+            case "stagetrigger":
+                return new StageTriggerProcessor();
             default:
                 throw new UnsupportedOperationException("Unsupported processor " + processor);
         }

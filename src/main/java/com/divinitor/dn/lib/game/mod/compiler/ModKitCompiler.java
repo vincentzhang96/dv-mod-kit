@@ -105,10 +105,19 @@ public class ModKitCompiler implements VersionCached.Versioned, ModCompiler {
                     continue;
                 }
 
+                List<String> dests = new ArrayList<>();
                 String dest = directive.getDest();
+                dests.add(dest);
                 destinationFiles.put(dest, modPack.getId());
+                String[] copies = directive.getCopies();
+                if (copies != null) {
+                    dests.addAll(Arrays.asList(copies));
+                    for (String copy : copies) {
+                        destinationFiles.put(copy, modPack.getId());
+                    }
+                }
 
-                steps.add(new FileBuildStep(modPack, dest, gameSource(assetAccessService, src),
+                steps.add(new FileBuildStep(modPack, dests.toArray(new String[0]), gameSource(assetAccessService, src),
                     directive.getCompressionLevel()));
             }
 
@@ -119,10 +128,19 @@ public class ModKitCompiler implements VersionCached.Versioned, ModCompiler {
                     continue;
                 }
 
+                List<String> dests = new ArrayList<>();
                 String dest = directive.getDest();
+                dests.add(dest);
                 destinationFiles.put(dest, modPack.getId());
+                String[] copies = directive.getCopies();
+                if (copies != null) {
+                    dests.addAll(Arrays.asList(copies));
+                    for (String copy : copies) {
+                        destinationFiles.put(copy, modPack.getId());
+                    }
+                }
 
-                steps.add(new FileBuildStep(modPack, dest, packSource(modPack, src),
+                steps.add(new FileBuildStep(modPack, dests.toArray(new String[0]), packSource(modPack, src),
                     directive.getCompressionLevel()));
             }
 

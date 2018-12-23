@@ -37,7 +37,7 @@ public class ManagedPak {
      */
     public static final int CURRENT_VERSION = 11;
 
-    public static final Version CURRENT_MANAGED_VERSION = Version.forIntegers(1, 0);
+    public static final Version CURRENT_MANAGED_VERSION = Version.forIntegers(2, 0);
 
     /**
      * Half of a gigabyte.

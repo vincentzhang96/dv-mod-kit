@@ -26,8 +26,12 @@ public interface ModCompiler {
     @AllArgsConstructor
     class FileBuildStep {
         private ModPackage mod;
-        private String destination;
+        private String[] destinations;
         private Utils.ThrowingSupplier<byte[]> source;
         private Integer compressionLevel;
+
+        public String getDestination() {
+            return destinations[0];
+        }
     }
 }

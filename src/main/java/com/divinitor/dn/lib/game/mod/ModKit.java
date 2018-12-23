@@ -30,7 +30,7 @@ import java.util.zip.ZipFile;
 public class ModKit {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(ModKit.class);
-    public static final Version KIT_VERSION = Version.forIntegers(0, 1, 12);
+    public static final Version KIT_VERSION = Version.forIntegers(0, 4, 0);
 
     @Getter
     private final Path root;
@@ -277,6 +277,7 @@ public class ModKit {
         copy.setName(packageDefinition.getName());
         copy.setTimestamp(Instant.now());
         copy.setVersion(packageDefinition.getVersion());
+        copy.setEris(packageDefinition.getEris());
         copy.setKit(this);
 
         Path moduleRepo = this.root.resolve("modkit").resolve("modpacks");

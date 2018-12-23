@@ -89,10 +89,19 @@ public class SingleModCompiler implements ModCompiler {
                     continue;
                 }
 
+                List<String> dests = new ArrayList<>();
                 String dest = directive.getDest();
+                dests.add(dest);
                 destinationFiles.put(dest, this.modPack.getId());
+                String[] copies = directive.getCopies();
+                if (copies != null) {
+                    dests.addAll(Arrays.asList(copies));
+                    for (String copy : copies) {
+                        destinationFiles.put(copy, this.modPack.getId());
+                    }
+                }
 
-                steps.add(new FileBuildStep(this.modPack, dest, gameSource(this.assetAccessService, src),
+                steps.add(new FileBuildStep(this.modPack, dests.toArray(new String[0]), gameSource(this.assetAccessService, src),
                     directive.getCompressionLevel()));
             }
         }
@@ -105,8 +114,18 @@ public class SingleModCompiler implements ModCompiler {
                     continue;
                 }
 
+                List<String> dests = new ArrayList<>();
                 String dest = directive.getDest();
+                dests.add(dest);
                 destinationFiles.put(dest, this.modPack.getId());
+                String[] copies = directive.getCopies();
+                if (copies != null) {
+                    dests.addAll(Arrays.asList(copies));
+                    for (String copy : copies) {
+                        destinationFiles.put(copy, this.modPack.getId());
+                    }
+                }
+
                 Utils.ThrowingSupplier<byte[]> source;
                 if (Strings.isNullOrEmpty(directive.getProcessor())) {
                     source = packSource(this.modPack, src);
@@ -114,7 +133,7 @@ public class SingleModCompiler implements ModCompiler {
                     source = Processors.getProcessor(directive.getProcessor()).process(this.modPack, src);
                 }
 
-                steps.add(new FileBuildStep(this.modPack, dest, source, directive.getCompressionLevel()));
+                steps.add(new FileBuildStep(this.modPack, dests.toArray(new String[0]), source, directive.getCompressionLevel()));
             }
         }
 
@@ -138,7 +157,7 @@ public class SingleModCompiler implements ModCompiler {
                     continue;
                 }
 
-                steps.add(new FileBuildStep(this.modPack, dest, tableEditor.tableEdit(tableName, directive),
+                steps.add(new FileBuildStep(this.modPack, new String[] { dest }, tableEditor.tableEdit(tableName, directive),
                     directive.getCompressionLevel()));
             }
         }
@@ -168,7 +187,7 @@ public class SingleModCompiler implements ModCompiler {
 
         mPak.setMagicNumber(ManagedPak.MAGIC_NUMBER);
         mPak.setVersion(ManagedPak.CURRENT_VERSION);
-        mPak.setFileCount(steps.size());
+        mPak.setFileCount(steps.stream().mapToInt(s -> s.getDestinations().length).sum());
         mPak.setModPackCount(1);
         mPak.setManagedMajorVersion(ManagedPak.CURRENT_MANAGED_VERSION.getMajorVersion());
         mPak.setManagedMinorVersion(ManagedPak.CURRENT_MANAGED_VERSION.getMinorVersion());
@@ -177,6 +196,7 @@ public class SingleModCompiler implements ModCompiler {
             .id(this.modPack.getId())
             .name(this.modPack.getName())
             .version(this.modPack.getVersion())
+            .projectUrl(this.modPack.getProjectUrl())
             .build()});
 
         mPak.setFileIndex(new ManagedPakIndexEntry[mPak.getFileCount()]);
@@ -216,23 +236,27 @@ public class SingleModCompiler implements ModCompiler {
                     deflaterOutputStream.flush();
 
                     int compressedSize = (int) (channel.position() - start);
-                    ManagedPakIndexEntry entry = ManagedPakIndexEntry.builder()
-                        .filePath(step.getDestination())
-                        .offset((int) start)
-                        .compressedSize(compressedSize)
-                        .rawSize(compressedSize)
-                        .realSize(data.length)
-                        .unknownA(0)
-                        .contentHash(hash)
-                        .remainder(ManagedPakIndexEntry.REMAINDER_INSTANCE)
-                        .build();
-                    fileIndex[i] = entry;
+
+
+                    String[] destinations = step.getDestinations();
+                    for (String destination : destinations) {
+                        ManagedPakIndexEntry entry = ManagedPakIndexEntry.builder()
+                            .filePath(destination)
+                            .offset((int) start)
+                            .compressedSize(compressedSize)
+                            .rawSize(compressedSize)
+                            .realSize(data.length)
+                            .unknownA(0)
+                            .contentHash(hash)
+                            .remainder(ManagedPakIndexEntry.REMAINDER_INSTANCE)
+                            .build();
+                        fileIndex[i] = entry;
+                        ++i;
+                    }
                 } catch (IOException e) {
                     throw new IOException("IO exception for asset " + step.getDestination(), e);
                 } catch (Exception e) {
                     throw new CompileException("Unable to package asset " + step.getDestination(), e);
-                } finally {
-                    ++i;
                 }
             }
 
@@ -243,6 +267,7 @@ public class SingleModCompiler implements ModCompiler {
                 DnStringUtils.writeFixedBufferString(entry.getId(), SIZEOF_ID, out);
                 DnStringUtils.writeFixedBufferString(entry.getName(), SIZEOF_NAME, out);
                 DnStringUtils.writeFixedBufferString(entry.getVersion().toString(), SIZEOF_VERSION, out);
+                DnStringUtils.writeFixedBufferString(Optional.ofNullable(entry.getProjectUrl()).orElse(""), SIZEOF_PROJECTURL, out);
             }
 
             //  Write pak index
@@ -251,31 +276,32 @@ public class SingleModCompiler implements ModCompiler {
                 writeIndexEntry(useEris, xorKey, out, entry);
             }
 
-            if (useEris) {
-                // Eris trap entry
-                ManagedPakIndexEntry entry = ManagedPakIndexEntry.builder()
-                        .filePath("\\ERIS")
-                        // Unlikely for anything to actually be at that offset
-                        .offset((768 * 1024 * 1024) /* 805306368 */)
-                        .compressedSize(1)
-                        .rawSize(1)
-                        .realSize(1)
-                        .unknownA(0)
-                        .contentHash(0)
-                        .remainder(ManagedPakIndexEntry.REMAINDER_INSTANCE)
-                        .build();
-                writeIndexEntry(useEris, xorKey, out, entry);
-            }
+            // Not needed
+//            if (useEris) {
+//                // Eris trap entry
+//                ManagedPakIndexEntry entry = ManagedPakIndexEntry.builder()
+//                        .filePath("\\ERIS")
+//                        // Unlikely for anything to actually be at that offset
+//                        .offset((768 * 1024 * 1024) /* 805306368 */)
+//                        .compressedSize(1)
+//                        .rawSize(1)
+//                        .realSize(1)
+//                        .unknownA(0)
+//                        .contentHash(0)
+//                        .remainder(ManagedPakIndexEntry.REMAINDER_INSTANCE)
+//                        .build();
+//                writeIndexEntry(useEris, xorKey, out, entry);
+//            }
 
             end = channel.position();
 
             // Write in Eris additional data
             long erisCustomInfoPos = channel.position() ;
-            if (useEris && (eris.getSerial() != 0 || !Strings.isNullOrEmpty(eris.getHwid()))) {
+            if (useEris) {
                 out = new LittleEndianDataOutputStream(Channels.newOutputStream(channel));
                 String hwid = eris.getHwid();
                 boolean hasHwid = !Strings.isNullOrEmpty(hwid) && hwid.length() == 64;
-                out.writeInt(xorKey ^ ~(hasHwid ? 48 : 16));
+                out.writeInt(xorKey ^ ~52);
 
                 int lower = (int) (eris.getSerial() & 0xFFFFFFFFL);
                 int higher = (int) ((eris.getSerial() >> 32) & 0xFFFFFFFFL);
@@ -297,12 +323,14 @@ public class SingleModCompiler implements ModCompiler {
                     byte[] filler = new byte[32];
                     out.write(filler);
                 }
+
+                // Game version
+                out.writeInt(xorKey ^ ~eris.getGameVersion());
             } else {
                 erisCustomInfoPos = 0;
             }
 
-            // Eris has a workaround
-            if (!useEris && channel.position() <= ManagedPak.HALF_GIGABYTE) {
+            if (modPack.isExpandPak()) {
                 channel.position(ManagedPak.HALF_GIGABYTE);
                 channel.write(ByteBuffer.wrap(new byte[1]));
             }
@@ -316,7 +344,7 @@ public class SingleModCompiler implements ModCompiler {
                 out.writeInt((int) erisCustomInfoPos); // TODO custominfo  //  12
                 out.writeInt(eris.getType()); // basic                         //  16
                 out.writeInt(xorKey);                                           //  20
-                out.writeInt(xorKey ^ ~(mPak.getFileCount() + 1));// +1 for workaround
+                out.writeInt(xorKey ^ ~(mPak.getFileCount()));              // 24
                 out.writeInt(xorKey ^ ~mPak.getFileIndexTableOffset());     //  28
                 byte[] buffer = new byte[100];
                 Random random = new Random(xorKey);
@@ -369,12 +397,13 @@ public class SingleModCompiler implements ModCompiler {
             throw new CompileException("Failed to write output", e);
         }
 
-        // Eris has a workaround to get around the 500 MB requirement
-        if (!useEris) {
+        if (modPack.isExpandPak()) {
             try {
+                // Sleep to ensure close
+                Thread.sleep(1000);
                 Sparser.markSparse(this.target);
                 Sparser.markSparseRange(this.target, end, ManagedPak.HALF_GIGABYTE - end);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 //  Don't care
             }
         }

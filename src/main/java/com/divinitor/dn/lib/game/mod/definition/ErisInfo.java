@@ -24,5 +24,6 @@ public class ErisInfo {
 
     protected String hwid;
 
+    protected int gameVersion;
     // TODO constraints and anti-tamper
 }

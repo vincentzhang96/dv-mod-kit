@@ -13,6 +13,7 @@ public class ManagedPakModIndexEntry {
     public static final int SIZEOF_ID = 32;
     public static final int SIZEOF_NAME = 64;
     public static final int SIZEOF_VERSION = 32;
+    public static final int SIZEOF_PROJECTURL = 64;
 
     /**
      * ID of the mod pack (should be unique for a given mod).
@@ -29,9 +30,8 @@ public class ManagedPakModIndexEntry {
      */
     protected Version version;
 
-
-
-
-
-
+    /**
+     * Pack GitHub URL
+     */
+    protected String projectUrl;
 }

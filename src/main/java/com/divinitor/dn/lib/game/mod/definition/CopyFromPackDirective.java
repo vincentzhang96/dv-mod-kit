@@ -12,6 +12,7 @@ public class CopyFromPackDirective {
 
     protected String source;
     protected String dest;
+    protected String[] copies;
     protected String processor;
     private Integer compressionLevel;
 

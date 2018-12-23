@@ -59,9 +59,25 @@ public class ModPackage {
     protected String customPrefix;
 
     /**
+     * (Optional) Project GitHub URL
+     */
+    protected String projectUrl;
+
+    /**
      * (Optional) Divinitor Eris support
      */
     protected ErisInfo eris;
+
+    /**
+     * Whether or not to expand the compiled pak. Defaults to false
+     */
+    protected boolean expandPak;
+
+
+    /**
+     * (Optional) Custom suffix for the resulting pak file. Defaults to blank.
+     */
+    protected String customSuffix;
 
     @Setter
     protected transient boolean isLatest;
