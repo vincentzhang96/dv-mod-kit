@@ -30,7 +30,7 @@ import java.util.zip.ZipFile;
 public class ModKit {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(ModKit.class);
-    public static final Version KIT_VERSION = Version.forIntegers(0, 4, 0);
+    public static final Version KIT_VERSION = Version.forIntegers(0, 5, 0);
 
     @Getter
     private final Path root;

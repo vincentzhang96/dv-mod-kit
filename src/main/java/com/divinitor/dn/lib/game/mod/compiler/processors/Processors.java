@@ -12,6 +12,10 @@ public class Processors {
                 return new UiStringProcessor();
             case "stagetrigger":
                 return new StageTriggerProcessor();
+            case "propinfo":
+                return new PropInfoProcessor();
+            case "shader":
+                return new ShaderProcessor();
             default:
                 throw new UnsupportedOperationException("Unsupported processor " + processor);
         }

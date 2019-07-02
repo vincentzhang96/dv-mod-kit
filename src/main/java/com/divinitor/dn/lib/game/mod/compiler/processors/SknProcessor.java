@@ -13,6 +13,8 @@ import com.google.gson.GsonBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class SknProcessor implements Processor {
     @Override
@@ -27,7 +29,19 @@ public class SknProcessor implements Processor {
             SknWriter writer = new SknWriter();
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             writer.write(skn, baos);
-            return baos.toByteArray();
+            byte[] result = baos.toByteArray();
+
+            try  {
+                Path root = modPack.getKit().getRoot();
+                Path temp = root.resolve("temp");
+                Files.createDirectories(temp);
+                String tempFileName = modPack.getId() + "-" + src + ".skn";
+                Path tempFile = temp.resolve(tempFileName);
+                Files.deleteIfExists(tempFile);
+            } catch (Exception e) {
+            }
+
+            return result;
         };
     }
 }

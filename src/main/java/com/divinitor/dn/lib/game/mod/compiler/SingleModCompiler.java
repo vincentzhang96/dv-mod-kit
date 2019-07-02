@@ -25,8 +25,11 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
@@ -144,21 +147,74 @@ public class SingleModCompiler implements ModCompiler {
                     tableName = tableName + ".dnt";
                 }
 
-                if (!this.assetAccessService.contains(tableName)) {
+                boolean isLocal = tableName.startsWith("!");
+                if (isLocal) {
+                    String localTableName = tableName.substring(1);
+                    if (!this.modPack.hasAsset(localTableName)) {
+                        results.missing.put(this.modPack.getId(), "mod::" + localTableName);
+                        continue;
+                    }
+                } else if (!this.assetAccessService.contains(tableName)) {
                     results.missing.put(this.modPack.getId(), "pak::" + tableName);
                     continue;
                 }
 
                 String dest;
                 try {
-                    dest = this.assetAccessService.resolve(tableName);
+                    dest = this.assetAccessService.resolve(isLocal ? tableName.substring(1) : tableName);
                 } catch (FileNotFoundException fnfe) {
                     results.missing.put(this.modPack.getId(), "pak::" + tableName);
                     continue;
                 }
 
-                steps.add(new FileBuildStep(this.modPack, new String[] { dest }, tableEditor.tableEdit(tableName, directive),
+                steps.add(new FileBuildStep(this.modPack,
+                    new String[] { dest },
+                    tableEditor.tableEdit(tableName, directive, this.modPack),
                     directive.getCompressionLevel()));
+            }
+        }
+
+        if (build.getFolder() != null) {
+            for (CopyFromFolderDirective directive : build.getFolder()) {
+                try {
+                    String src = directive.getSource();
+                    if (!this.modPack.hasAsset(src)) {
+                        results.missing.put(this.modPack.getId(), "mod::" + src);
+                        continue;
+                    }
+
+                    //  src is a real relative path relative to the mod base dir
+                    Path baseDir = modPack.getKit().resolveModPackagePath(modPack, src);
+                    String targetDir = directive.getDest();
+                    if (Strings.isNullOrEmpty(targetDir)) {
+                        targetDir = "/";
+                    } else {
+                        targetDir = targetDir.replace('\\', '/');
+                        if (!targetDir.endsWith("/")) {
+                            targetDir += "/";
+                        }
+                        if (!targetDir.startsWith("/")) {
+                            targetDir = "/" + targetDir;
+                        }
+                    }
+                    // Enumerate all files
+                    try (Stream<Path> paths = Files.walk(baseDir).filter(p -> !Files.isDirectory(p))) {
+                        List<Path> files = paths.collect(Collectors.toList());
+                        for (Path file : files) {
+                            Path relative = baseDir.relativize(file);
+                            String assetName = relative.toString().replace("\\", "/");
+                            String resultName = targetDir + assetName;
+
+                            steps.add(new FileBuildStep(
+                                this.modPack,
+                                new String[] { resultName },
+                                () -> Files.readAllBytes(file),
+                                null));
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -301,7 +357,7 @@ public class SingleModCompiler implements ModCompiler {
                 out = new LittleEndianDataOutputStream(Channels.newOutputStream(channel));
                 String hwid = eris.getHwid();
                 boolean hasHwid = !Strings.isNullOrEmpty(hwid) && hwid.length() == 64;
-                out.writeInt(xorKey ^ ~52);
+                out.writeInt(xorKey ^ ~72);
 
                 int lower = (int) (eris.getSerial() & 0xFFFFFFFFL);
                 int higher = (int) ((eris.getSerial() >> 32) & 0xFFFFFFFFL);
@@ -326,6 +382,20 @@ public class SingleModCompiler implements ModCompiler {
 
                 // Game version
                 out.writeInt(xorKey ^ ~eris.getGameVersion());
+
+                long startTime = eris.getStartTime();
+                long endTime = eris.getEndTime();
+                // Start time
+                int lstart = (int) (startTime & 0xFFFFFFFFL);
+                int hstart = (int) ((startTime >> 32) & 0xFFFFFFFFL);
+                out.writeInt(xorKey ^ ~lstart);
+                out.writeInt(xorKey ^ ~hstart);
+
+                // End time
+                int lend = (int) (endTime & 0xFFFFFFFFL);
+                int hend = (int) ((endTime >> 32) & 0xFFFFFFFFL);
+                out.writeInt(xorKey ^ ~lend);
+                out.writeInt(xorKey ^ ~hend);
             } else {
                 erisCustomInfoPos = 0;
             }

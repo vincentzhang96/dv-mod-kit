@@ -26,4 +26,8 @@ public class ErisInfo {
 
     protected int gameVersion;
     // TODO constraints and anti-tamper
+
+    protected long startTime;
+
+    protected long endTime;
 }

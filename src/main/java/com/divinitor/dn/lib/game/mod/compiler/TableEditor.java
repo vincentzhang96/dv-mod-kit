@@ -5,6 +5,7 @@ import co.phoenixlab.dn.subfile.dnt.DntColumn;
 import co.phoenixlab.dn.subfile.dnt.DntReader;
 import co.phoenixlab.dn.util.LittleEndianDataOutputStream;
 import com.divinitor.dn.lib.game.mod.DnAssetAccessService;
+import com.divinitor.dn.lib.game.mod.definition.ModPackage;
 import com.divinitor.dn.lib.game.mod.definition.TableEditDirective;
 import com.divinitor.dn.lib.game.mod.definition.TableRow;
 import com.divinitor.dn.lib.game.mod.util.Utils;
@@ -16,6 +17,7 @@ import gnu.trove.set.hash.TIntHashSet;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -28,13 +30,20 @@ public class TableEditor {
     }
 
     public Utils.ThrowingSupplier<byte[]> tableEdit(
-            String tableName,
-            TableEditDirective directive) {
-        return () -> this.compileTable(tableName, directive);
+        String tableName,
+        TableEditDirective directive,
+        ModPackage modPack) {
+        return () -> this.compileTable(tableName, directive, modPack);
     }
 
-    public byte[] compileTable(String tableName, TableEditDirective directive) throws IOException {
-        byte[] tableBytes = this.assetAccessService.getAsset(tableName);
+    public byte[] compileTable(String tableName, TableEditDirective directive, ModPackage modPack) throws IOException {
+        byte[] tableBytes;
+        if (tableName.startsWith("!")) {
+            tableBytes = modPack.getAsset(tableName.substring(1));
+        } else {
+            tableBytes = this.assetAccessService.getAsset(tableName);
+        }
+
         DntReader reader = new DntReader();
         DntReader.DntHandle handle = reader.read(ByteBuffer.wrap(tableBytes));
         Dnt dnt = handle.getDnt();
@@ -97,8 +106,9 @@ public class TableEditor {
 
         int rows = 0;
         Dnt dnt = handle.getDnt();
-        byte[] data = dnt.getData();
-        int widths[] = new int[dnt.getNumColumns()];
+        ByteBuffer data = dnt.getData();
+        data.order(ByteOrder.LITTLE_ENDIAN);
+        int[] widths = new int[dnt.getNumColumns()];
         for (int i = 0; i < dnt.getColumns().length; i++) {
             widths[i] = dnt.getColumns()[i].getDataType() == DntColumn.DataType.TEXT ? 0 : 4;
         }
@@ -129,8 +139,8 @@ public class TableEditor {
                 offset += 4;
                 for (int width : widths) {
                     if (width == 0) {
-                        int addL = data[offset] & 0xFF;
-                        addL |= (data[offset + 1] << 8) & 0xFF00;
+                        int addL = data.get(offset) & 0xFF;
+                        addL |= (data.get(offset + 1) << 8) & 0xFF00;
                         offset += addL;
                         offset += 2;
                     } else {
@@ -139,7 +149,10 @@ public class TableEditor {
                 }
 
                 int width = offset - startPos;
-                outputStream.write(data, startPos, width);
+                byte[] write = new byte[width];
+                data.position(startPos);
+                data.get(write, 0, width);
+                outputStream.write(write, 0, width);
             }
 
             ++rows;

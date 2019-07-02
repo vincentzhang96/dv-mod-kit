@@ -14,6 +14,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 public class UiStringProcessor implements Processor {
@@ -25,7 +27,19 @@ public class UiStringProcessor implements Processor {
         return () -> {
             UiStringEditDirective directive = this.load(modPack, src);
             byte[] uiStr = modPack.getKit().getAssetAccessService().getAsset("uistring.xml");
-            return this.patch(directive, uiStr);
+            byte[] result = this.patch(directive, uiStr);
+
+            try  {
+                Path root = modPack.getKit().getRoot();
+                Path temp = root.resolve("temp");
+                Files.createDirectories(temp);
+                String tempFileName = modPack.getId() + "-uistring.xml";
+                Path tempFile = temp.resolve(tempFileName);
+                Files.deleteIfExists(tempFile);
+            } catch (Exception e) {
+            }
+
+            return result;
         };
     }
 
@@ -102,44 +116,46 @@ public class UiStringProcessor implements Processor {
             throw new RuntimeException(e);
         }
 
-        //  Apply changes
-        //  TODO MID collisions for adds? or do we consider this a forced update
-        if (edit.getAdd() != null) {
-            entries.putAll(edit.getAdd());
-        }
+        if (edit != null) {
+            //  Apply changes
+            //  TODO MID collisions for adds? or do we consider this a forced update
+            if (edit.getAdd() != null) {
+                entries.putAll(edit.getAdd());
+            }
 
-        if (edit.getEdit() != null) {
-            for (UiStringEditDirective.UiStringEdit uiStringEdit : edit.getEdit()) {
-                String match = uiStringEdit.getMatch();
-                if (!Strings.isNullOrEmpty(match)) {
-                    //  Verify that it matches, otherwise don't modify
-                    String originalValue = entries.get(uiStringEdit.getMid());
-                    // BYTE COMPARE
-                    byte[] matchBytes = match.getBytes(StandardCharsets.UTF_8);
-                    byte[] originalBytes = originalValue.getBytes(StandardCharsets.UTF_8);
-                    if (!Arrays.equals(matchBytes, originalBytes)) {
-                        //  For some reason ED decided it wanted to write MIDs in directly, so treat those as matching
-                        boolean valid = false;
-                        try {
-                            if (Long.parseUnsignedLong(originalValue) == Long.parseUnsignedLong(uiStringEdit.getMid())) {
-                                valid = true;
+            if (edit.getEdit() != null) {
+                for (UiStringEditDirective.UiStringEdit uiStringEdit : edit.getEdit()) {
+                    String match = uiStringEdit.getMatch();
+                    if (!Strings.isNullOrEmpty(match)) {
+                        //  Verify that it matches, otherwise don't modify
+                        String originalValue = entries.getOrDefault(uiStringEdit.getMid(), "");
+                        // BYTE COMPARE
+                        byte[] matchBytes = match.getBytes(StandardCharsets.UTF_8);
+                        byte[] originalBytes = originalValue.getBytes(StandardCharsets.UTF_8);
+                        if (!Arrays.equals(matchBytes, originalBytes)) {
+                            //  For some reason ED decided it wanted to write MIDs in directly, so treat those as matching
+                            boolean valid = false;
+                            try {
+                                if (Long.parseUnsignedLong(originalValue) == Long.parseUnsignedLong(uiStringEdit.getMid())) {
+                                    valid = true;
+                                }
+                            } catch (Exception e) {
                             }
-                        } catch (Exception e) {
-                        }
 
-                        if (!valid) {
-                            ModKit.LOGGER.warn("MID {} does not match: Got \"{}\", expected \"{}\". Skipping.",
-                                uiStringEdit.getMid(), new String(originalBytes, StandardCharsets.UTF_8), new String(matchBytes, StandardCharsets.UTF_8));
-                            continue;
+                            if (!valid) {
+                                ModKit.LOGGER.warn("MID {} does not match: Got \"{}\", expected \"{}\". Skipping.",
+                                    uiStringEdit.getMid(), new String(originalBytes, StandardCharsets.UTF_8), new String(matchBytes, StandardCharsets.UTF_8));
+                                continue;
+                            }
                         }
                     }
-                }
 
-                if (entries.containsKey(uiStringEdit.getMid())) {
-                    entries.put(uiStringEdit.getMid(), uiStringEdit.getValue());
-                } else {
-                    ModKit.LOGGER.warn("MID {} is not in the original uistring.xml. Skipping.",
-                        uiStringEdit.getMid());
+                    if (entries.containsKey(uiStringEdit.getMid())) {
+                        entries.put(uiStringEdit.getMid(), uiStringEdit.getValue());
+                    } else {
+                        ModKit.LOGGER.warn("MID {} is not in the original uistring.xml. Skipping.",
+                            uiStringEdit.getMid());
+                    }
                 }
             }
         }

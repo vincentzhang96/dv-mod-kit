@@ -17,7 +17,7 @@ public class ActKitProcessor implements Processor {
             Path root = modPack.getKit().getRoot();
             Path temp = root.resolve("temp");
             Files.createDirectories(temp);
-            String tempFileName = baseDir.getFileName().toString() + ".act";
+            String tempFileName = modPack.getId() + "-" + baseDir.getFileName().toString() + ".act";
             Path tempFile = temp.resolve(tempFileName);
             Files.deleteIfExists(tempFile);
             compiler.compile(baseDir, tempFile);
