@@ -94,7 +94,15 @@ public class TableEditor {
         }
 
         for (TableRow modRow : modify) {
-            mod.put(modRow.getRowId(), modRow);
+            int[] rows = modRow.getRows();
+            if (rows != null && rows.length > 0) {
+                for (int row : rows) {
+                    mod.put(row, new TableRow(row, null, modRow.getColumns()));
+                }
+            }
+            if (modRow.getRowId() > 0) {
+                mod.put(modRow.getRowId(), modRow);
+            }
         }
 
         TIntSet delete = new TIntHashSet();
