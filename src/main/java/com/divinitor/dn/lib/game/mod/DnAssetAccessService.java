@@ -77,7 +77,12 @@ public class DnAssetAccessService {
                 //  Resources
                 List<Path> resources;
                 try (Stream<Path> walk = Files.walk(pakDir, 1)) {
-                    resources = walk.filter(p -> getPathFileNameStr(p).matches("^Resource[0-9][0-9]\\.pak$"))
+                    resources = walk.filter(p -> {
+                        String filename = getPathFileNameStr(p);
+                        return filename.matches("^Resource[0-9][0-9]\\.pak$")
+                            || filename.matches("^Patch[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]\\.[xp]ak$")
+                            || filename.matches("^00Resource_dvmk_pd-.+?\\.pak$");
+                    })
                         .collect(Collectors.toList());
                 }
                 //  Sort in order (filesystem stream doesn't guarantee ordering)
@@ -97,6 +102,7 @@ public class DnAssetAccessService {
                 if (!Files.isRegularFile(pak)) {
                     throw new IllegalArgumentException("Not a valid file");
                 }
+                System.out.printf("Loading %s...\n", pak.getFileName());
                 PakReader reader = new PakReader(pak);
                 reader.open();
                 ++pakIndexCounter;
