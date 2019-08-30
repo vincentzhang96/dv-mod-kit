@@ -1,21 +1,19 @@
 package com.divinitor.dn.lib.game.mod.compiler.processors;
 
-import co.phoenixlab.dn.subfile.stage.trigger.StageTriggers;
-import co.phoenixlab.dn.subfile.stage.trigger.StageTriggersWriter;
+import co.phoenixlab.dn.subfile.stage.triggerdefine.TriggerDefine;
+import com.divinitor.dn.lib.game.mod.compiler.processors.models.StageTriggerModels;
 import com.divinitor.dn.lib.game.mod.definition.ModPackage;
 import com.divinitor.dn.lib.game.mod.util.Utils;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
-import static java.nio.file.StandardOpenOption.*;
-
-public class StageTriggerProcessor implements Processor {
+public class StageTriggerV2Processor implements Processor {
     @Override
     public Utils.ThrowingSupplier<byte[]> process(ModPackage modPack, String src) {
         return () -> {
@@ -23,11 +21,11 @@ public class StageTriggerProcessor implements Processor {
 //                .registerTypeAdapter(TriggerScriptCall.class, new TriggerScriptCallConverter())
                 .create();
             byte[] data = modPack.getAsset(src);
-            StageTriggers triggers = gson.fromJson(new InputStreamReader(new ByteArrayInputStream(data)), StageTriggers.class);
-            StageTriggersWriter writer = new StageTriggersWriter();
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            writer.write(triggers, baos);
-            byte[] result = baos.toByteArray();
+            StageTriggerModels.TriggerScript triggers = gson.fromJson(new InputStreamReader(new ByteArrayInputStream(data)), StageTriggerModels.TriggerScript.class);
+
+            Map.Entry<byte[], TriggerDefine> written = StageTriggerModels.writeTriggerVariableDefinitions(triggers);
+
+            byte[] result = StageTriggerModels.writeTriggers(triggers, written.getValue().getEntries());
 
             try  {
                 Path root = modPack.getKit().getRoot();
@@ -35,7 +33,7 @@ public class StageTriggerProcessor implements Processor {
                 Files.createDirectories(temp);
                 String tempFileName = modPack.getId() + "-" + src + "trigger.ini";
                 Path tempFile = temp.resolve(tempFileName);
-                Files.write(tempFile, result, TRUNCATE_EXISTING, WRITE, CREATE);
+                Files.write(tempFile, result);
             } catch (Exception e) {
             }
 

@@ -122,12 +122,20 @@ public class TableEditor {
         }
 
         for (DntReader.DntHandle.RowReader rr : handle) {
-            int thisRowId = rr.getRowId();
+            int thisRowId = (int)rr.getRowId();
 
             //  Insert new
             while (!additions.isEmpty() && additions.peek().getRowId() < thisRowId) {
-                //  Insert
-                outputStream.write(this.insertion(handle, additions.poll()));
+                //  Insert if not exists
+                TableRow next = additions.poll();
+                if (next == null) {
+                    continue;
+                }
+
+                if (Arrays.binarySearch(handle.getRowIds(), next.getRowId()) >= 0) {
+                    throw new IllegalArgumentException("Row " + next.getRowId() + " already exists, cannot be added");
+                }
+                outputStream.write(this.insertion(handle, next));
                 ++rows;
             }
 
@@ -297,6 +305,10 @@ public class TableEditor {
         return outputStream.toByteArray();
     }
 
+//    private String resolvePlaceholders(String value, DntReader.DntHandle.RowReader rr) {
+//
+//    }
+
     private static boolean parseBool(Object o) {
         if (o instanceof Boolean) {
             return (boolean) o;
@@ -307,7 +319,7 @@ public class TableEditor {
         }
 
         if (o instanceof String) {
-            return Boolean.valueOf((String) o);
+            return Boolean.parseBoolean((String) o);
         }
 
         return o != null;

@@ -12,6 +12,10 @@ public class Processors {
                 return new UiStringProcessor();
             case "stagetrigger":
                 return new StageTriggerProcessor();
+            case "triggerv2":
+                return new StageTriggerV2Processor();
+            case "triggerdefinev2":
+                return new StageTriggerDefineV2Processor();
             case "propinfo":
                 return new PropInfoProcessor();
             case "shader":

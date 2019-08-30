@@ -73,6 +73,10 @@ public class ModPackage {
      */
     protected boolean expandPak;
 
+    /**
+     * Whether or not to output the result as a folder instead of a pak
+     */
+    protected boolean outputAsFolder;
 
     /**
      * (Optional) Custom suffix for the resulting pak file. Defaults to blank.

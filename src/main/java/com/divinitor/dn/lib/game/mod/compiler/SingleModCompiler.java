@@ -239,6 +239,36 @@ public class SingleModCompiler implements ModCompiler {
 
         List<FileBuildStep> steps = results.steps;
 
+        if (this.modPack.isOutputAsFolder()) {
+            try {
+                Files.createDirectories(this.target);
+                for (FileBuildStep step : steps) {
+                    try {
+                        byte[] data = step.getSource().get();
+                        String dest = step.getDestination();
+                        if (dest.startsWith("/") || dest.startsWith("\\")) {
+                            dest = dest.substring(1);
+                        }
+                        Path destFile = this.target.resolve(dest);
+                        Path parent = destFile.getParent();
+                        Files.createDirectories(parent);
+                        Files.write(destFile, data, TRUNCATE_EXISTING, WRITE, CREATE);
+                    } catch (IOException e) {
+                        throw new IOException("IO exception for asset " + step.getDestination(), e);
+                    } catch (Exception e) {
+                        throw new CompileException("Unable to package asset " + step.getDestination(), e);
+                    }
+                }
+            } catch (Exception e) {
+                throw new CompileException("Failed to write output", e);
+            }
+
+        } else {
+            compileToPak(steps);
+        }
+    }
+
+    private void compileToPak(List<FileBuildStep> steps) {
         ManagedPak mPak = new ManagedPak();
 
         mPak.setMagicNumber(ManagedPak.MAGIC_NUMBER);

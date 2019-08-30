@@ -50,7 +50,7 @@
         <dependency>
             <groupId>co.phoenixlab.dn</groupId>
             <artifactId>DNSubfile</artifactId>
-            <version>0.14.0</version>
+            <version>0.15.0</version>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
