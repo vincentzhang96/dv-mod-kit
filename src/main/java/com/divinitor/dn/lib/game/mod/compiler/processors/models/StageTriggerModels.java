@@ -12,10 +12,12 @@ import java.util.*;
 public class StageTriggerModels {
     public static class TriggerScript {
         List<String> variables;
+        List<String> eventAreas;
         List<TriggerScriptTrigger> triggers;
 
         public TriggerScript() {
             this.variables = new ArrayList<>();
+            this.eventAreas = new ArrayList<>();
             this.triggers = new ArrayList<>();
         }
     }
@@ -34,6 +36,29 @@ public class StageTriggerModels {
         }
     }
 
+    public static class EventAreaDefine {
+        String name;
+        int id;
+
+        private static EventAreaDefine valueOf(String s) {
+            EventAreaDefine ret = new EventAreaDefine();
+            if (!s.startsWith("area ")) {
+                throw new IllegalArgumentException("Not an area");
+            }
+
+            s = s.substring("area ".length());
+            String[] split = s.split(" ");
+            if (split.length != 2) {
+                throw new IllegalArgumentException("Invalid area");
+            }
+
+            ret.name = split[0];
+            ret.id = Integer.parseInt(split[1]);
+
+            return ret;
+        }
+    }
+
     public static byte[] writeTriggers(TriggerScript script, TriggerDefineEntry[] defEntries) {
         StageTriggers triggers = new StageTriggers();
         triggers.setNumTriggers(script.triggers.size());
@@ -41,6 +66,7 @@ public class StageTriggerModels {
         triggers.setTriggers(triggerEntries);
         triggers.setNumTriggers(triggerEntries.length);
         List<TriggerScriptTrigger> triggerScriptTriggers = script.triggers;
+        EventAreaDefine[] areas = script.eventAreas.stream().map(EventAreaDefine::valueOf).toArray(EventAreaDefine[]::new);
         for (int i = 0, triggerScriptTriggersSize = triggerScriptTriggers.size(); i < triggerScriptTriggersSize; i++) {
             TriggerScriptTrigger t = triggerScriptTriggers.get(i);
             Trigger trigger = new Trigger();
@@ -52,7 +78,7 @@ public class StageTriggerModels {
             List<TriggerScriptCall> conditions = new ArrayList<>();
             for (int j = 0, len = t.conditions.size(); j < len; j++) {
                 String condition = t.conditions.get(j);
-                TriggerScriptCall c = parseCall(condition, defEntries, TriggerScriptCall.TriggerScriptCallType.CONDITION);
+                TriggerScriptCall c = parseCall(condition, defEntries, areas, TriggerScriptCall.TriggerScriptCallType.CONDITION);
                 if (c != null) {
                     conditions.add(c);
                 }
@@ -63,7 +89,7 @@ public class StageTriggerModels {
             List<TriggerScriptCall> actions = new ArrayList<>();
             for (int j = 0, len = t.actions.size(); j < len; j++) {
                 String action = t.actions.get(j);
-                TriggerScriptCall c = parseCall(action, defEntries, TriggerScriptCall.TriggerScriptCallType.ACTION);
+                TriggerScriptCall c = parseCall(action, defEntries, areas, TriggerScriptCall.TriggerScriptCallType.ACTION);
                 if (c != null) {
                     actions.add(c);
                 }
@@ -74,7 +100,7 @@ public class StageTriggerModels {
             List<TriggerScriptCall> events = new ArrayList<>();
             for (int j = 0, len = t.events.size(); j < len; j++) {
                 String event = t.events.get(j);
-                TriggerScriptCall c = parseCall(event, defEntries, TriggerScriptCall.TriggerScriptCallType.EVENT);
+                TriggerScriptCall c = parseCall(event, defEntries, areas, TriggerScriptCall.TriggerScriptCallType.EVENT);
                 if (c != null) {
                     events.add(c);
                 }
@@ -191,7 +217,7 @@ public class StageTriggerModels {
         return unescapeTickedString(split[index]);
     }
 
-    static TriggerScriptCall parseCall(String call, TriggerDefineEntry[] entries, TriggerScriptCall.TriggerScriptCallType type) {
+    static TriggerScriptCall parseCall(String call, TriggerDefineEntry[] entries, EventAreaDefine[] areas, TriggerScriptCall.TriggerScriptCallType type) {
         if (call.startsWith("#")) {
             return null;
         }
@@ -266,13 +292,15 @@ public class StageTriggerModels {
 
     static TriggerCallParameter parseTriggerCallParameter(TriggerDefineEntry[] entries, String param) {
         TriggerCallParameter callParam = null;
-        if (param.endsWith("f")) {
+        if (param.matches("[+-]?[0-9]*\\.?[0-9]+f")) {
             String trimmed = param.substring(0, param.length() - 1);
             callParam = new TriggerCallFloatParameter(Float.parseFloat(trimmed));
             callParam.setType(TriggerCallParameter.TriggerCallParameterType.FLOAT);
         } else if (param.startsWith("'")) {
             callParam = new TriggerCallStringParameter(unescapeTickedString(param) + '\u0000');
             callParam.setType(TriggerCallParameter.TriggerCallParameterType.STRING);
+        } else if (param.startsWith("z~")) {
+
         } else if (param.matches("-?[0-9]+[a-z]?")) {
             TriggerCallParameter.TriggerCallParameterType t = TriggerCallParameter.TriggerCallParameterType.INTEGER;
             if (param.endsWith("o")) {
