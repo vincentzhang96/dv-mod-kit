@@ -74,7 +74,7 @@ public class ModPackage {
     protected boolean expandPak;
 
     /**
-     * Whether or not to output the result as a folder instead of a pak
+     * Whether or not to output the result as a folder as well as a pak
      */
     protected boolean outputAsFolder;
 

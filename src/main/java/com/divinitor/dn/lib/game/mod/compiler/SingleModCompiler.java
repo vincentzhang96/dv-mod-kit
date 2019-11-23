@@ -240,8 +240,10 @@ public class SingleModCompiler implements ModCompiler {
         List<FileBuildStep> steps = results.steps;
 
         if (this.modPack.isOutputAsFolder()) {
+            String filename = this.target.getFileName().toString();
+            Path targetFolder = this.target.getParent().resolve("out").resolve(filename);
             try {
-                Files.createDirectories(this.target);
+                Files.createDirectories(targetFolder);
                 for (FileBuildStep step : steps) {
                     try {
                         byte[] data = step.getSource().get();
@@ -249,7 +251,7 @@ public class SingleModCompiler implements ModCompiler {
                         if (dest.startsWith("/") || dest.startsWith("\\")) {
                             dest = dest.substring(1);
                         }
-                        Path destFile = this.target.resolve(dest);
+                        Path destFile = targetFolder.resolve(dest);
                         Path parent = destFile.getParent();
                         Files.createDirectories(parent);
                         Files.write(destFile, data, TRUNCATE_EXISTING, WRITE, CREATE);
@@ -263,9 +265,9 @@ public class SingleModCompiler implements ModCompiler {
                 throw new CompileException("Failed to write output", e);
             }
 
-        } else {
-            compileToPak(steps);
         }
+
+        compileToPak(steps);
     }
 
     private void compileToPak(List<FileBuildStep> steps) {
